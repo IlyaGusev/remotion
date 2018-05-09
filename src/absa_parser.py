@@ -1,9 +1,13 @@
+import os
 import xml.etree.ElementTree as ET
+import jsonpickle
 from nltk.tokenize import WordPunctTokenizer
+from rnnmorph.predictor import RNNMorphPredictor
+from rnnmorph.data_preparation.grammeme_vectorizer import GrammemeVectorizer
 
-from vocabulary import Vocabulary
+from src.vocabulary import Vocabulary
 
-class Opinion:
+class Opinion(object):
     def __init__(self, node):
         self.begin = int(node.get('from'))
         self.end = int(node.get('to'))
@@ -36,14 +40,14 @@ class Sentence:
         for opinion_node in node.findall(".//Opinion"):
             self.opinions.append(Opinion(opinion_node))
 
-class Review:
+class Review(object):
     def __init__(self, node):
         self.rid = node.get('rid')
         self.sentences = []
         for sentence_node in node.findall(".//sentence"):
             self.sentences.append(Sentence(sentence_node))
 
-class Word:
+class Word(object):
     def __init__(self, text, begin, end):
         self.text = text
         self.begin = begin
@@ -71,14 +75,42 @@ class Word:
             hid = hex(id(self))
         )
 
-class Dataset:
-    def __init__(self, filename):
-        tree = ET.parse(filename)
-        root = tree.getroot()
-        self.reviews = []
-        for review_node in root.findall(".//Review"):
-            self.reviews.append(Review(review_node))
-        self.tokenized_reviews = self.__tokenize()
+class PosTaggedWord(Word):
+    def __init__(self, word, pos, tag, vector):
+        Word.__init__(self, word.text, word.begin, word.end)
+        self.opinion = word.opinion
+        self.pos = pos
+        self.tag = tag
+        self.vector = vector
+
+    def __repr__(self):
+        return '<PosTaggedWord "{word}", {pos}#{tag}, {vector} at {hid}>'.format(
+            word = self.text,
+            pos = self.pos,
+            tag = self.tag,
+            vector = self.vector,
+            hid = hex(id(self))
+        )
+
+class Dataset(object):
+    def __init__(self, filename, language, grammeme_vectorizer_path=None):
+        self.language = language
+        if filename.endswith('xml'):
+            tree = ET.parse(filename)
+            root = tree.getroot()
+            self.reviews = []
+            for review_node in root.findall(".//Review"):
+                self.reviews.append(Review(review_node))
+            self.tokenized_reviews = self.__tokenize()
+            self.pos_tagged_reviews = self.__pos_tag(grammeme_vectorizer_path)
+        elif filename.endswith('json'):
+            with open(filename, "r", encoding='utf-8') as f:
+                dataset = jsonpickle.decode(f.read())
+                self.__dict__.update(dataset.__dict__)
+
+    def save(self, filename):
+        with open(filename, "w", encoding='utf-8') as w:
+            w.write(jsonpickle.encode(self))
 
     def get_opinion_count(self):
         count = 0
@@ -109,9 +141,31 @@ class Dataset:
                 reviews[-1].append(tokenized_sentence)
         return reviews
 
+    def __pos_tag(self, grammeme_vectorizer_path):
+        if self.language == 'ru' and grammeme_vectorizer_path is not None:
+            os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+            predictor = RNNMorphPredictor()
+            grammeme_vectorizer = GrammemeVectorizer(grammeme_vectorizer_path)
+            pos_tagged_reviews = []
+            for review in self.tokenized_reviews:
+                pos_tagged_reviews.append([])
+                for sentence in review:
+                    words = [word.text for word in sentence]
+                    forms = predictor.predict_sentence_tags(words)
+                    pos_tagged_sentence = []
+                    for word_idx, form in enumerate(forms):
+                        vector = grammeme_vectorizer.get_vector(form.pos + "#" + form.tag)
+                        pos_tagged_sentence.append(PosTaggedWord(sentence[word_idx], form.pos, form.tag, vector))
+                    pos_tagged_reviews[-1].append(pos_tagged_sentence)
+            os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+            return pos_tagged_reviews
+        raise NotImplementedError()
+
     def get_vocabulary(self):
         vocabulary = Vocabulary()
         for review in self.tokenized_reviews:
             for sentence in review:
                 vocabulary.add_sentence(" ".join([word.text for word in sentence]))
         return vocabulary
+
+
