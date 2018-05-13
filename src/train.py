@@ -1,11 +1,13 @@
 import torch
 import torch.optim as optim
 from torch.autograd import Variable
+import random
 from random import shuffle
 from sklearn.metrics import roc_auc_score
 
 from src.model import RemotionRNN, save_model, load_model
 from src.embeddings import get_embeddings
+from src.metrics import choose_threshold_by_f1
 
 def get_batches(data, vocabulary, gram_vector_size, batch_size, max_length):
     text_batch = []
@@ -77,13 +79,16 @@ def train_model(train_data,
                 gram_hidden_size=16,
                 n_layers=3,
                 lr=0.001,
-                val_size=0.2):
+                val_size=0.2,
+                embeddings_filename="w2v.txt",
+                seed=42):
+    random.seed(seed)
 
     use_cuda = torch.cuda.is_available()
 
     model = RemotionRNN(vocabulary.size(), embeddings_size, rnn_size, gram_vector_size,
                         gram_hidden_size, n_layers=n_layers)
-    embeddings = get_embeddings(vocabulary, "w2v.txt")
+    embeddings = get_embeddings(vocabulary, embeddings_filename)
     model.embedding.weight = torch.nn.Parameter(embeddings, requires_grad=False)
     model = model.cuda() if use_cuda else model
 
@@ -128,8 +133,9 @@ def train_model(train_data,
             val_loss = val_loss/val_count,
             roc_auc = roc_auc_score(all_y, all_pred)
         ))
+        threshold = choose_threshold_by_f1(all_y, all_pred)
         save_model(model, optimizer, "model.pt")
         if prev_val_loss < val_loss:
             break
         prev_val_loss = val_loss
-    return model
+    return model, threshold
