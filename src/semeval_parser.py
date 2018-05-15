@@ -23,6 +23,7 @@ class Opinion(object):
         category = node.get('category')
         self.cat_first = category.split('#')[0]
         self.cat_second = category.split('#')[1]
+        self.words = []
 
     def __repr__(self):
         return "<Opinion {begin}:{end} {c1}#{c2} {polarity} at {hid}>".format(
@@ -78,6 +79,7 @@ class SemEvalDataset(Dataset):
                             continue
                         if word.begin >= opinion.begin and word.end <= opinion.end:
                             word.set_opinion(opinion)
+                            self.words.append(word)
                     tokenized_sentence.append(word)
                 reviews[-1].append(tokenized_sentence)
         return reviews

@@ -34,6 +34,7 @@ class Aspect(object):
             'Irn': 4
         }
         self.mark = mark_values[node.get('mark')]
+        self.words = []
 
     def __repr__(self):
         return "<Aspect {begin}:{end} {t} {category} {polarity} at {hid}>".format(
@@ -83,6 +84,7 @@ class SentiRuEvalDataset(Dataset):
                         for opinion in review.aspects:
                             if word.begin >= opinion.begin and word.end <= opinion.end:
                                 word.set_opinion(opinion)
+                                opinion.words.append(word)
                         tokenized_sentence.append(word)
                 reviews[-1].append(tokenized_sentence)
         return reviews

@@ -4,7 +4,7 @@ import torch.optim as optim
 
 class RemotionRNN(nn.Module):
     def __init__(self, input_size, embedding_dim, rnn_size, gram_vector_size, gram_hidden_size, n_layers=3,
-                 dropout=0.3, bidirectional=True):
+                 dropout=0.3, output_size=3,bidirectional=True):
         super(RemotionRNN, self).__init__()
 
         self.embedding_dim = embedding_dim
@@ -14,6 +14,7 @@ class RemotionRNN(nn.Module):
         self.gram_hidden_size = gram_hidden_size
         self.n_layers = n_layers
         self.dropout = dropout
+        self.output_size = output_size
         self.bidirectional = bidirectional
 
         self.embedding = nn.Embedding(input_size, embedding_dim)
@@ -21,15 +22,14 @@ class RemotionRNN(nn.Module):
         self.grammeme_activation = nn.ReLU()
         self.rnn = nn.LSTM(embedding_dim + gram_hidden_size, rnn_size, n_layers,
                            dropout=dropout, bidirectional=bidirectional)
-        self.output = nn.Linear(rnn_size * (2 if bidirectional else 1) , 1)
-        self.sm = nn.Softmax(dim=1)
+        self.output = nn.Linear(rnn_size * (2 if bidirectional else 1), output_size)
 
     def forward(self, input_seqs, gram_vectors, hidden=None):
         embedded = self.embedding(input_seqs)
         grammeme = self.grammeme_activation(self.grammeme_dense(gram_vectors))
         rnn_input = torch.cat((embedded, grammeme), dim=2)
         outputs, hidden = self.rnn(rnn_input, hidden)
-        predictions = self.sm(self.output(outputs).squeeze(2))
+        predictions = self.output(outputs).squeeze(2)
         return predictions
 
 def save_model(model, optimizer, filename):
@@ -59,6 +59,7 @@ def load_model(model_filename, use_cuda):
         gram_vector_size=state_dict['gram_vector_size'],
         gram_hidden_size=state_dict['gram_hidden_size'],
         n_layers=state_dict['n_layers'],
+        bidirectional=state_dict['bidirectional'],
         dropout=state_dict['dropout']
     )
     model.load_state_dict(state_dict['model'])

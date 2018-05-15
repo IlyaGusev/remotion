@@ -15,14 +15,11 @@ class Word(object):
     def set_opinion(self, opinion):
         self.opinion = opinion
 
-    def get_polarity(self):
-        if self.opinion is None:
-            return 0
+    def is_target_begin(self, target_function):
+        if target_function(self) > 0:
+            return self.opinion.words[0] == self
         else:
-            self.opinion.polarity
-
-    def is_colored(self):
-        return self.opinion is not None
+            return False
 
     def __repr__(self):
         return '<Word "{text}" from {begin} to {end} with opinion {opinion} at {hid}>'.format(
