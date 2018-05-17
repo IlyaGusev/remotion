@@ -14,7 +14,7 @@ class Vocabulary:
         self.word2index = dict()
         self.word2count = Counter()
         self.reset()
-        
+
     def reset(self):
         self.word2count = Counter()
         self.index2word = ["<pad>", "<unk>"]
@@ -22,7 +22,7 @@ class Vocabulary:
 
     def get_pad(self):
         return self.word2index["<pad>"]
-    
+
     def get_unk(self):
         return self.word2index["<unk>"]
 
@@ -37,7 +37,7 @@ class Vocabulary:
             self.index2word.append(word)
         else:
             self.word2count[word] += 1
-    
+
     def has_word(self, word) -> bool:
         return word in self.word2index
 
@@ -64,7 +64,6 @@ class Vocabulary:
             self.add_word(word)
             self.word2count[word] = count
 
-    
     def save(self, path) -> None:
         with open(path, "wb") as f:
             pickle.dump(self, f, pickle.HIGHEST_PROTOCOL)
@@ -79,3 +78,8 @@ class Vocabulary:
 
     def pad_indices(self, indices: List[int], max_length: int):
         return indices + [self.get_pad() for _ in range(max_length - len(indices))]
+
+    def merge(self, other):
+        for word in other.index2word:
+            self.add_word(word)
+        return self

@@ -63,8 +63,16 @@ class Dataset(object):
         vocabulary = Vocabulary()
         for review in self.tokenized_reviews:
             for sentence in review:
-                vocabulary.add_sentence(" ".join([word.text for word in sentence]))
+                vocabulary.add_sentence(" ".join([word.text.lower() for word in sentence]))
         return vocabulary
+
+    def get_char_set(self):
+        char_set = set()
+        for review in self.tokenized_reviews:
+            for sentence in review:
+                for word in sentence:
+                    char_set = char_set.union(set(word.text))
+        return " " + "".join(char_set)
 
     def save(self, filename):
         with open(filename, "w", encoding='utf-8') as w:

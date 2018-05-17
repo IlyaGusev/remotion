@@ -8,33 +8,60 @@ from src.parser import Word, PosTaggedWord, Dataset
 from src.vocabulary import Vocabulary
 
 class Aspect(object):
-    def __init__(self, node):
-        self.begin = int(node.get('from'))
-        self.end = int(node.get('to'))
-        self.target = node.get('term')
-        sentiment_values = {
+    def __init__(self, begin=0, end=0, target="", polarity=1, category="", aspect_type=0, mark=0):
+        self.type_values = {
+            'explicit': 0,
+            'implicit': 1,
+            'fct': 2
+        }
+        self.rev_type_values = {value: key for key, value in self.type_values.items()}
+
+        self.sentiment_values = {
             'positive': 3,
             'neutral': 1,
             'negative': 0,
             'both': 2
         }
-        self.polarity = sentiment_values[node.get('sentiment')]
-        self.category = node.get('category')
-        type_values = {
-            'explicit': 0,
-            'implicit': 1,
-            'fct': 2
-        }
-        self.type = type_values[node.get('type')]
-        mark_values = {
+        self.rev_sentiment_values = {value: key for key, value in self.sentiment_values.items()}
+
+        self.mark_values = {
             'Rel': 0,
             'Irr': 1,
             'Cmpr': 2,
             'Prev': 3,
             'Irn': 4
         }
-        self.mark = mark_values[node.get('mark')]
+        self.rev_mark_values = {value: key for key, value in self.mark_values.items()}
+
+        self.begin = begin
+        self.end = end
+        self.target = target
+        self.polarity = polarity
+        self.category = category
+        self.type = aspect_type
+        self.mark = mark
         self.words = []
+
+    def parse(self, node):
+        self.begin = int(node.get('from'))
+        self.end = int(node.get('to'))
+        self.target = node.get('term')
+        self.polarity = self.sentiment_values[node.get('sentiment')]
+        self.category = node.get('category')
+        self.type = self.type_values[node.get('type')]
+        self.mark = self.mark_values[node.get('mark')]
+
+    def is_empty(self):
+        return self.target == ""
+
+    def inflate_target(self):
+        self.target = " ".join([word.text for word in self.words]).replace('"', "'")
+
+    def to_xml(self):
+        return '<aspect mark="{mark}" category="{category}" type="{aspect_type}" from="{begin}" to="{end}" polarity="{polarity}" term="{term}"/>\n'.format(
+            begin=self.begin, end=self.end, term=self.target, mark=self.rev_mark_values[self.mark],
+            aspect_type=self.rev_type_values[self.type], category=self.category,
+            polarity=self.rev_sentiment_values[self.polarity])
 
     def __repr__(self):
         return "<Aspect {begin}:{end} {t} {category} {polarity} at {hid}>".format(
@@ -47,12 +74,24 @@ class Aspect(object):
         )
 
 class Review(object):
-    def __init__(self, node):
+    def __init__(self, text="", rid=0):
+        self.text = text
+        self.rid = rid
+        self.aspects = []
+
+    def parse(node):
         self.text = node.find(".//text").text
         self.rid = node.get("id")
         self.aspects = []
         for aspect_node in node.findall(".//aspect"):
-            self.aspects.append(Aspect(aspect_node))
+            aspect = Aspect()
+            aspect.parse(aspect_node)
+            self.aspects.append(aspect)
+
+    def to_xml(self):
+        aspects_xml = "".join([aspect.to_xml() for aspect in self.aspects])
+        return '<review id="{rid}">\n<text>{text}</text>\n<aspects>\n{aspects}</aspects>\n</review>\n'.format(
+            rid=self.rid, text=self.text.replace("&", "#"), aspects=aspects_xml)
 
 class SentiRuEvalDataset(Dataset):
     def parse(self, filename, grammeme_vectorizer_path):

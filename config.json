@@ -1,0 +1,22 @@
+{
+    "char_count": 137,
+    "char_dropout_p": 0.2,
+    "char_embedding_dim": 10,
+    "char_function_output_size": 100,
+    "char_max_word_length": 30,
+    "dense_size": 50,
+    "gram_dropout_p": 0.3,
+    "gram_hidden_size": 20,
+    "gram_vector_size": 52,
+    "output_size": 3,
+    "rnn_bidirectional": true,
+    "rnn_dropout_p": 0.5,
+    "rnn_hidden_size": 80,
+    "rnn_n_layers": 3,
+    "use_chars": false,
+    "use_crf": false,
+    "use_pos": true,
+    "word_embedding_dim": 500,
+    "word_embedding_dropout_p": 0.3,
+    "word_vocabulary_size": 9027
+}
