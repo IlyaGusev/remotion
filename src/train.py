@@ -112,8 +112,8 @@ def train_model(config_filename,
     config.char_max_word_length = max_word_length
 
     model = RemotionRNN(config)
-    if use_pretrained_embeddings:
-        embeddings = get_embeddings(vocabulary, embeddings_filename)
+    if config.use_word_embeddings and use_pretrained_embeddings:
+        embeddings = get_embeddings(vocabulary, embeddings_filename, config.word_embedding_dim)
         model.embedding.weight = torch.nn.Parameter(embeddings, requires_grad=False)
     print(model)
     model = model.cuda() if use_cuda else model

@@ -2,6 +2,7 @@ import json
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch.autograd import Variable
 from torchcrf import CRF
 
 class Config(object):
@@ -9,6 +10,7 @@ class Config(object):
         self.use_crf = False
         self.use_pos = True
         self.use_chars = False
+        self.use_word_embeddings = True
         self.word_vocabulary_size = 2
         self.word_embedding_dim = 500
         self.word_embedding_dropout_p = 0.2
@@ -16,6 +18,7 @@ class Config(object):
         self.rnn_hidden_size = 50
         self.rnn_dropout_p = 0.5
         self.rnn_bidirectional = True
+        self.rnn_output_dropout_p = 0.3
         self.gram_vector_size = 52
         self.gram_hidden_size = 30
         self.gram_dropout_p = 0.2
@@ -25,6 +28,7 @@ class Config(object):
         self.char_dropout_p = 0.2
         self.char_max_word_length = 30
         self.dense_size = 32
+        self.dense_dropout_p = 0.3
         self.output_size = 3
 
     def save(self, filename):
@@ -40,37 +44,45 @@ class RemotionRNN(nn.Module):
         super().__init__()
 
         self.config = config
+        rnn_input_size = 0
 
-        self.embedding = nn.Embedding(config.word_vocabulary_size, config.word_embedding_dim)
-        self.embedding_dropout = nn.Dropout(config.word_embedding_dropout_p)
-        rnn_input_size = config.word_embedding_dim
+        if config.use_word_embeddings:
+            self.embedding = nn.Embedding(config.word_vocabulary_size, config.word_embedding_dim)
+            self.embedding_dropout = nn.Dropout(config.word_embedding_dropout_p)
+            rnn_input_size += config.word_embedding_dim
 
         if config.use_chars:
             self.char_embedding = nn.Embedding(config.char_count, config.char_embedding_dim)
             all_chars_size = config.char_max_word_length * config.char_embedding_dim
-            self.char_function = nn.Linear(all_chars_size, config.char_function_output_size)
+            self.char_function = nn.Linear(all_chars_size, config.char_function_output_size, bias=False)
             self.char_function_activation = nn.ReLU()
             self.char_dropout = nn.Dropout(config.char_dropout_p)
             rnn_input_size += config.char_function_output_size
 
         if config.use_pos:
-            self.grammeme_dense = nn.Linear(config.gram_vector_size, config.gram_hidden_size)
+            self.grammeme_dense = nn.Linear(config.gram_vector_size, config.gram_hidden_size, bias=False)
             self.grammeme_activation = nn.ReLU()
             self.grammeme_dropout = nn.Dropout(config.gram_dropout_p)
             rnn_input_size += config.gram_hidden_size
 
         self.rnn = nn.LSTM(rnn_input_size, config.rnn_hidden_size, config.rnn_n_layers,
                            dropout=config.rnn_dropout_p, bidirectional=config.rnn_bidirectional)
+        self.rnn_output_dropout = nn.Dropout(config.rnn_output_dropout_p)
         self.dense = nn.Linear(config.rnn_hidden_size * (2 if config.rnn_bidirectional else 1),
-                               config.dense_size)
+                               config.dense_size, bias=False)
         self.dense_activation = nn.ReLU()
-        self.output = nn.Linear(config.dense_size, config.output_size)
+        self.dense_dropout = nn.Dropout(config.dense_dropout_p)
+        self.output = nn.Linear(config.dense_size, config.output_size, bias=False)
         if config.use_crf:
             self.crf = CRF(config.output_size)
 
     def __lstm_run(self, input_seqs, gram_vectors, char_seqs):
-        rnn_input = self.embedding(input_seqs)
-        rnn_input = self.embedding_dropout(rnn_input)
+        rnn_input = Variable(torch.FloatTensor())
+        rnn_input = rnn_input.cuda() if input_seqs.is_cuda else rnn_input
+        if self.config.use_word_embeddings:
+            word_embeddings = self.embedding(input_seqs)
+            word_embeddings = self.embedding_dropout(word_embeddings)
+            rnn_input = torch.cat((rnn_input, word_embeddings), dim=2)
         if self.config.use_chars:
             char_embeddings = self.char_embedding(char_seqs)
             batch_size = char_embeddings.size(0)
@@ -85,7 +97,9 @@ class RemotionRNN(nn.Module):
             grammeme = self.grammeme_dropout(grammeme)
             rnn_input = torch.cat((rnn_input, grammeme), dim=2)
         outputs, hidden = self.rnn(rnn_input, None)
+        outputs = self.rnn_output_dropout(outputs)
         outputs = self.dense_activation(self.dense(outputs))
+        outputs = self.dense_dropout(outputs)
         predictions = self.output(outputs)
         return predictions
 
@@ -125,7 +139,8 @@ def load_model(model_filename, config_filename, use_cuda):
     config.load(config_filename)
     model = RemotionRNN(config)
     model.load_state_dict(state_dict['model'])
-    model.embedding.weight.requires_grad = False
+    if config.use_word_embeddings:
+        model.embedding.weight.requires_grad = False
     model = model.cuda() if use_cuda else model
 
     optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()))

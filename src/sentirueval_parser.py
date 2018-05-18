@@ -79,7 +79,7 @@ class Review(object):
         self.rid = rid
         self.aspects = []
 
-    def parse(node):
+    def parse(self, node):
         self.text = node.find(".//text").text
         self.rid = node.get("id")
         self.aspects = []
@@ -100,7 +100,9 @@ class SentiRuEvalDataset(Dataset):
         root = tree.getroot()
         self.reviews = []
         for review_node in root.findall(".//review"):
-            self.reviews.append(Review(review_node))
+            review = Review()
+            review.parse(review_node)
+            self.reviews.append(review)
         self.tokenized_reviews = self.tokenize()
         self.pos_tagged_reviews = self.pos_tag(grammeme_vectorizer_path)
 

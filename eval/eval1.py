@@ -10,9 +10,9 @@ def get_terms(item, gold, task):
     if gold:
         terms = item.find("aspects").findall("aspect")
     else:
-        if item.find("aspects1") == None:
+        if item.find("aspects") == None:
             return review_id, 0, units
-        terms = item.find("aspects1").findall("aspect")
+        terms = item.find("aspects").findall("aspect")
     terms_count = 0
 
     term_set = [] # we don't have to take repeated terms
@@ -46,9 +46,9 @@ def get_units(item, gold, task):
     if gold:
         terms = item.find("aspects").findall("aspect")
     else:
-        if item.find("aspects1") == None:
+        if item.find("aspects") == None:
             return review_id, 0, units
-        terms = item.find("aspects1").findall("aspect")
+        terms = item.find("aspects").findall("aspect")
 
     terms_count = 0
 
