@@ -7,6 +7,7 @@ from torchcrf import CRF
 
 class Config(object):
     def __init__(self):
+        self.is_sequence_predictor = True
         self.use_crf = False
         self.use_pos = True
         self.use_chars = False
@@ -96,8 +97,17 @@ class RemotionRNN(nn.Module):
             grammeme = self.grammeme_activation(self.grammeme_dense(gram_vectors))
             grammeme = self.grammeme_dropout(grammeme)
             rnn_input = torch.cat((rnn_input, grammeme), dim=2)
+        rnn_input = rnn_input.transpose(0, 1)
+
+        assert rnn_input.size(1) == input_seqs.size(0)
         outputs, hidden = self.rnn(rnn_input, None)
-        outputs = self.rnn_output_dropout(outputs)
+        outputs = outputs.transpose(0, 1)
+        if self.config.is_sequence_predictor:
+            outputs = self.rnn_output_dropout(outputs)
+        else:
+            n = hidden[0].size(0)
+            hidden = torch.cat([hidden[0][0:n:2], hidden[0][1:n:2]], 2)[-1]
+            outputs = self.rnn_output_dropout(hidden)
         outputs = self.dense_activation(self.dense(outputs))
         outputs = self.dense_dropout(outputs)
         predictions = self.output(outputs)
@@ -109,8 +119,9 @@ class RemotionRNN(nn.Module):
             loss = -self.crf(predictions.transpose(0, 1), y.transpose(0, 1))
         else:
             criterion = nn.CrossEntropyLoss(size_average=False)
-            predictions = predictions.transpose(1, 2).unsqueeze(3)
-            y = y.unsqueeze(2)
+            if self.config.is_sequence_predictor:
+                predictions = predictions.transpose(1, 2).unsqueeze(3)
+                y = y.unsqueeze(2)
             loss = criterion(predictions, y)
         return loss
 

@@ -148,7 +148,7 @@ def main(argv=None):
 
     n = len(idx2units.keys())
     print("%f\t%f\t%f" % (total_p/n, total_r/n, total_f/n))
-    
+
 if __name__ == "__main__":
     main(sys.argv[1:])
     exit()

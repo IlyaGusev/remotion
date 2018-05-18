@@ -55,7 +55,7 @@ class Aspect(object):
         return self.target == ""
 
     def inflate_target(self):
-        self.target = " ".join([word.text for word in self.words]).replace('"', "'")
+        self.target = " ".join([word.text for word in self.words]).replace('"', "'").replace('&', '#')
 
     def to_xml(self):
         return '<aspect mark="{mark}" category="{category}" type="{aspect_type}" from="{begin}" to="{end}" polarity="{polarity}" term="{term}"/>\n'.format(

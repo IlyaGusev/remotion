@@ -45,7 +45,7 @@ def shrink_w2v(input_filename, vocabulary, found_border, output_filename, print_
                 if i in vocabulary_embeddings:
                     embedding = " ".join([str(j) for j in list(vocabulary_embeddings[i])])
                     w.write(word + " " + embedding + "\n")
-        print("Unknown examples:", words)
+        print("Unknown examples:", words[:100])
 
 def parse_line(line, vocabulary, vocabulary_words, embeddings):
     try:
