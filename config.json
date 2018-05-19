@@ -17,7 +17,7 @@
     "rnn_hidden_size": 32,
     "rnn_n_layers": 2,
     "rnn_output_dropout_p": 0.4,
-    "use_chars": true,
+    "use_chars": false,
     "use_crf": true,
     "use_pos": true,
     "use_word_embeddings": true,

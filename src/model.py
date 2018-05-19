@@ -5,6 +5,8 @@ import torch.optim as optim
 from torch.autograd import Variable
 from torchcrf import CRF
 
+from src.batch import VarBatch
+
 
 class Config(object):
     def __init__(self):
@@ -79,29 +81,29 @@ class RemotionRNN(nn.Module):
         if config.use_crf:
             self.crf = CRF(config.output_size)
 
-    def __lstm_run(self, input_seqs, gram_vectors, char_seqs):
+    def __lstm_run(self, batch: VarBatch):
         rnn_input = Variable(torch.FloatTensor())
-        rnn_input = rnn_input.cuda() if input_seqs.is_cuda else rnn_input
+        rnn_input = rnn_input.cuda() if batch.word_indices.is_cuda else rnn_input
         if self.config.use_word_embeddings:
-            word_embeddings = self.embedding(input_seqs)
+            word_embeddings = self.embedding(batch.word_indices)
             word_embeddings = self.embedding_dropout(word_embeddings)
             rnn_input = torch.cat((rnn_input, word_embeddings), dim=2)
         if self.config.use_chars:
-            char_embeddings = self.char_embedding(char_seqs)
+            char_embeddings = self.char_embedding(batch.char_indices)
             batch_size = char_embeddings.size(0)
             word_count = char_embeddings.size(1)
-            char_embeddings = char_embeddings.view(batch_size, word_count,
-                self.config.char_max_word_length * self.config.char_embedding_dim)
+            all_chars_size = self.config.char_max_word_length * self.config.char_embedding_dim
+            char_embeddings = char_embeddings.view(batch_size, word_count, all_chars_size)
             char_function_output = self.char_function_activation(self.char_function(char_embeddings))
             char_function_output = self.char_dropout(char_function_output)
             rnn_input = torch.cat((rnn_input, char_function_output), dim=2)
         if self.config.use_pos:
-            grammeme = self.grammeme_activation(self.grammeme_dense(gram_vectors))
+            grammeme = self.grammeme_activation(self.grammeme_dense(batch.gram_vectors))
             grammeme = self.grammeme_dropout(grammeme)
             rnn_input = torch.cat((rnn_input, grammeme), dim=2)
         rnn_input = rnn_input.transpose(0, 1)
 
-        assert rnn_input.size(1) == input_seqs.size(0)
+        assert rnn_input.size(1) == batch.word_indices.size(0)
         outputs, hidden = self.rnn(rnn_input, None)
         outputs = outputs.transpose(0, 1)
         if self.config.is_sequence_predictor:
@@ -115,8 +117,9 @@ class RemotionRNN(nn.Module):
         predictions = self.output(outputs)
         return predictions
 
-    def forward(self, input_seqs, gram_vectors, char_seqs, y):
-        predictions = self.__lstm_run(input_seqs, gram_vectors, char_seqs)
+    def forward(self, batch: VarBatch):
+        predictions = self.__lstm_run(batch)
+        y = batch.y
         if self.config.use_crf:
             loss = -self.crf(predictions.transpose(0, 1), y.transpose(0, 1))
         else:
@@ -127,8 +130,8 @@ class RemotionRNN(nn.Module):
             loss = criterion(predictions, y)
         return loss
 
-    def predict(self, input_seqs, gram_vectors, char_seqs):
-        predictions = self.__lstm_run(input_seqs, gram_vectors, char_seqs)
+    def predict(self, batch):
+        predictions = self.__lstm_run(batch)
         if self.config.use_crf:
             return self.crf.decode(predictions.transpose(0, 1))
         else:

@@ -1,75 +1,19 @@
-import torch
-import torch.optim as optim
-from torch.autograd import Variable
 import random
 import copy
-from sklearn.metrics import roc_auc_score
-from torchcrf import CRF
 
-from src.model import Config, RemotionRNN, save_model, load_model
+import torch
+import torch.optim as optim
+
+from src.model import Config, RemotionRNN, save_model
 from src.embeddings import get_embeddings
-from src.metrics import choose_threshold_by_f1
+from src.batch import get_batches
 
-def get_batches(data, vocabulary, char_set, gram_vector_size, batch_size,
-        max_length, max_word_length, target_function):
-    text_batch = []
-    gram_batch = []
-    char_batch = []
-    y = []
 
-    for review in data:
-        indices = []
-        gram_vectors = []
-        target = []
-        for sentence in review:
-            words_texts = [word.text for word in sentence]
-            chars = [[char_set.find(ch) if char_set.find(ch) != -1 else 0 for ch in word] for word in words_texts]
-            text = " ".join([text.lower() for text in words_texts])
-            indices += vocabulary.get_indices(text)
-            gram_vectors += [word.vector for word in sentence]
-            target += [target_function(word) for word in sentence]
-
-        indices = vocabulary.pad_indices(indices, max_length)[:max_length]
-        for _ in range(max_length-len(gram_vectors)):
-            gram_vectors.append([0 for _ in range(gram_vector_size)])
-        gram_vectors = gram_vectors[:max_length]
-        chars = [word + [0 for _ in range(max_word_length-len(word))] for word in chars]
-        chars += [[0 for _ in range(max_word_length)] for _ in range(max_length - len(chars))]
-        target += [0 for _ in range(max_length-len(target))]
-        target = target[:max_length]
-
-        text_batch.append(indices)
-        gram_batch.append(gram_vectors)
-        char_batch.append(chars)
-        y.append(target)
-
-        if len(text_batch) == batch_size:
-            text_var = Variable(torch.LongTensor(text_batch), requires_grad=False)
-            gram_var = Variable(torch.FloatTensor(gram_batch), requires_grad=False)
-            char_var = Variable(torch.LongTensor(char_batch), requires_grad=False)
-            y_var = Variable(torch.LongTensor(y), requires_grad=False)
-            yield text_var, gram_var, char_var, y_var
-            text_batch = []
-            gram_batch = []
-            char_batch = []
-            y = []
-    if len(text_batch) != 0:
-        text_var = Variable(torch.LongTensor(text_batch), requires_grad=False)
-        gram_var = Variable(torch.FloatTensor(gram_batch), requires_grad=False)
-        char_var = Variable(torch.LongTensor(char_batch), requires_grad=False)
-        y_var = Variable(torch.LongTensor(y), requires_grad=False)
-        yield text_var, gram_var, char_var, y_var
-
-def train_batch(model, text_batch, gram_batch, char_batch, y, use_cuda, optimizer=None):
-    text_batch = text_batch.cuda() if use_cuda else text_batch
-    gram_batch = gram_batch.cuda() if use_cuda else gram_batch
-    char_batch = char_batch.cuda() if use_cuda else char_batch
-    y = y.cuda() if use_cuda else y 
-
+def train_batch(model, batch, optimizer=None):
     if optimizer is not None:
         optimizer.zero_grad()
 
-    loss = model.forward(text_batch, gram_batch, char_batch, y)
+    loss = model.forward(batch)
 
     if optimizer is not None:
         loss.backward()
@@ -78,12 +22,6 @@ def train_batch(model, text_batch, gram_batch, char_batch, y, use_cuda, optimize
 
     return loss.data.item()
 
-def predict_batch(model, text_batch, gram_batch, char_batch, use_cuda):
-    text_batch = text_batch.cuda() if use_cuda else text_batch
-    gram_batch = gram_batch.cuda() if use_cuda else gram_batch
-    char_batch = char_batch.cuda() if use_cuda else char_batch
-    model.eval()
-    return model.predict(text_batch, gram_batch, char_batch)
 
 def train_model(config_filename,
                 model_filename,
@@ -132,28 +70,28 @@ def train_model(config_filename,
     for epoch in range(epochs):
         train_loss = 0
         train_count = 0
-        train_batches = get_batches(train_data, vocabulary, char_set,
-            gram_vector_size, batch_size, max_length, max_word_length, target_function)
-        for text_batch, gram_batch, char_batch, y in train_batches:
+        train_batches = get_batches(train_data, vocabulary, char_set, batch_size,
+                                    max_length, max_word_length, target_function)
+        for batch in train_batches:
             model.train()
-            loss = train_batch(model, text_batch, gram_batch, char_batch, y, use_cuda, optimizer)
+            loss = train_batch(model, batch, optimizer)
             train_loss += loss
             train_count += 1
 
         val_loss = 0
         val_count = 0
-        val_batches = get_batches(val_data, vocabulary, char_set,
-            gram_vector_size, batch_size, max_length, max_word_length, target_function)
-        for text_batch, gram_batch, char_batch, y in val_batches:
+        val_batches = get_batches(val_data, vocabulary, char_set, batch_size,
+                                  max_length, max_word_length, target_function)
+        for batch in val_batches:
             model.eval()
-            loss = train_batch(model, text_batch, gram_batch, char_batch, y, use_cuda, None)
+            loss = train_batch(model, batch, None)
             val_loss += loss
             val_count += 1
 
         print("Epoch: {epoch}, train loss: {train_loss}, val loss: {val_loss}".format(
-            epoch = epoch,
-            train_loss = train_loss/train_count,
-            val_loss = val_loss/val_count
+            epoch=epoch,
+            train_loss=train_loss/train_count,
+            val_loss=val_loss/val_count
         ))
         if prev_val_loss < val_loss:
             bad_count += 1
