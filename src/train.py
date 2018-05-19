@@ -29,6 +29,7 @@ def train_model(config_filename,
                 vocabulary,
                 char_set,
                 target_function,
+                additional_function=None,
                 use_pretrained_embeddings=True,
                 embeddings_filename="w2v.txt",
                 val_size=0.2,
@@ -54,7 +55,6 @@ def train_model(config_filename,
     if config.use_word_embeddings and use_pretrained_embeddings:
         embeddings = get_embeddings(vocabulary, embeddings_filename, config.word_embedding_dim)
         model.embedding.weight = torch.nn.Parameter(embeddings, requires_grad=False)
-    print(model)
     model = model.cuda() if use_cuda else model
 
     optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=lr)
@@ -71,7 +71,7 @@ def train_model(config_filename,
         train_loss = 0
         train_count = 0
         train_batches = get_batches(train_data, vocabulary, char_set, batch_size,
-                                    max_length, max_word_length, target_function)
+                                    max_length, max_word_length, target_function, additional_function)
         for batch in train_batches:
             model.train()
             loss = train_batch(model, batch, optimizer)
@@ -81,7 +81,7 @@ def train_model(config_filename,
         val_loss = 0
         val_count = 0
         val_batches = get_batches(val_data, vocabulary, char_set, batch_size,
-                                  max_length, max_word_length, target_function)
+                                  max_length, max_word_length, target_function, additional_function)
         for batch in val_batches:
             model.eval()
             loss = train_batch(model, batch, None)

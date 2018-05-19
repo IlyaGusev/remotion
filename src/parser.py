@@ -10,30 +10,24 @@ class Word(object):
         self.text = text
         self.begin = begin
         self.end = end
-        self.opinion = None
+        self.opinions = []
 
-    def set_opinion(self, opinion):
-        self.opinion = opinion
-
-    def is_target_begin(self, target_function):
-        if target_function(self) > 0:
-            return self.opinion.words[0] == self
-        else:
-            return False
+    def add_opinion(self, opinion):
+        self.opinions.append(opinion)
 
     def __repr__(self):
-        return '<Word "{text}" from {begin} to {end} with opinion {opinion} at {hid}>'.format(
+        return '<Word "{text}" from {begin} to {end} with opinions {opinions} at {hid}>'.format(
             text = self.text,
             begin = self.begin,
             end = self.end,
-            opinion = self.opinion,
+            opinions = self.opinions,
             hid = hex(id(self))
         )
 
 class PosTaggedWord(Word):
     def __init__(self, word, pos, tag, vector):
         Word.__init__(self, word.text, word.begin, word.end)
-        self.opinion = word.opinion
+        self.opinions = word.opinions
         self.pos = pos
         self.tag = tag
         self.vector = vector
@@ -53,7 +47,7 @@ class Dataset(object):
         self.tokenized_reviews = []
         self.pos_tagged_reviews = []
 
-    def parse(self, filename, grammeme_vectorizer_path):
+    def parse(self, filename):
         raise NotImplementedError()
 
     def tokenize(self):
@@ -104,24 +98,20 @@ class Dataset(object):
                         colored_words_count += 1
         return float(colored_words_count)/words_count
 
-    def pos_tag(self, grammeme_vectorizer_path):
-        if grammeme_vectorizer_path is not None:
-            os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
-            predictor = RNNMorphPredictor()
-            grammeme_vectorizer = GrammemeVectorizer(grammeme_vectorizer_path)
-            pos_tagged_reviews = []
-            for review in self.tokenized_reviews:
-                pos_tagged_reviews.append([])
-                for sentence in review:
-                    words = [word.text for word in sentence]
-                    forms = predictor.predict_sentence_tags(words)
-                    pos_tagged_sentence = []
-                    for word_idx, form in enumerate(forms):
-                        vector = grammeme_vectorizer.get_vector(form.pos + "#" + form.tag)
-                        pos_tagged_word = PosTaggedWord(sentence[word_idx], form.pos, form.tag, vector)
-                        pos_tagged_sentence.append(pos_tagged_word)
-                    pos_tagged_reviews[-1].append(pos_tagged_sentence)
-            os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-            return pos_tagged_reviews
-        raise NotImplementedError()
+    def pos_tag(self):
+        os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+        predictor = RNNMorphPredictor()
+        pos_tagged_reviews = []
+        for review in self.tokenized_reviews:
+            pos_tagged_reviews.append([])
+            for sentence in review:
+                words = [word.text for word in sentence]
+                forms = predictor.predict_sentence_tags(words)
+                pos_tagged_sentence = []
+                for word_idx, form in enumerate(forms):
+                    pos_tagged_word = PosTaggedWord(sentence[word_idx], form.pos, form.tag, form.vector)
+                    pos_tagged_sentence.append(pos_tagged_word)
+                pos_tagged_reviews[-1].append(pos_tagged_sentence)
+        os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+        return pos_tagged_reviews
 

@@ -58,7 +58,7 @@ class Aspect(object):
         self.target = " ".join([word.text for word in self.words]).replace('"', "'").replace('&', '#')
 
     def to_xml(self):
-        return '<aspect mark="{mark}" category="{category}" type="{aspect_type}" from="{begin}" to="{end}" polarity="{polarity}" term="{term}"/>\n'.format(
+        return '<aspect mark="{mark}" category="{category}" type="{aspect_type}" from="{begin}" to="{end}" sentiment="{polarity}" term="{term}"/>\n'.format(
             begin=self.begin, end=self.end, term=self.target, mark=self.rev_mark_values[self.mark],
             aspect_type=self.rev_type_values[self.type], category=self.category,
             polarity=self.rev_sentiment_values[self.polarity])
@@ -94,7 +94,7 @@ class Review(object):
             rid=self.rid, text=self.text.replace("&", "#"), aspects=aspects_xml)
 
 class SentiRuEvalDataset(Dataset):
-    def parse(self, filename, grammeme_vectorizer_path):
+    def parse(self, filename):
         assert filename.endswith('xml')
         tree = ET.parse(filename)
         root = tree.getroot()
@@ -104,7 +104,7 @@ class SentiRuEvalDataset(Dataset):
             review.parse(review_node)
             self.reviews.append(review)
         self.tokenized_reviews = self.tokenize()
-        self.pos_tagged_reviews = self.pos_tag(grammeme_vectorizer_path)
+        self.pos_tagged_reviews = self.pos_tag()
 
     def tokenize(self):
         sentence_splitter = SentenceSplitter(language='ru')
@@ -124,7 +124,7 @@ class SentiRuEvalDataset(Dataset):
                         word = Word(word_text, word_begin, word_end)
                         for opinion in review.aspects:
                             if word.begin >= opinion.begin and word.end <= opinion.end:
-                                word.set_opinion(opinion)
+                                word.add_opinion(opinion)
                                 opinion.words.append(word)
                         tokenized_sentence.append(word)
                 reviews[-1].append(tokenized_sentence)

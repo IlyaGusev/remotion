@@ -49,7 +49,7 @@ class Batch:
         target += [0 for _ in range(max_length - len(target))]
         target = target[:max_length]
 
-        additional += [0 for _ in range(max_length - len(additional))]
+        additional += [[0] for _ in range(max_length - len(additional))]
         additional = additional[:max_length]
 
         self.word_indices.append(indices)
@@ -70,7 +70,7 @@ class VarBatch:
         self.word_indices = Variable(LongTensor(batch.word_indices), requires_grad=False)
         self.gram_vectors = Variable(FloatTensor(batch.gram_vectors), requires_grad=False)
         self.char_indices = Variable(LongTensor(batch.char_indices), requires_grad=False)
-        self.additional_features = Variable(LongTensor(batch.additional_features), requires_grad=False)
+        self.additional_features = Variable(FloatTensor(batch.additional_features), requires_grad=False)
         self.y = Variable(LongTensor(batch.y), requires_grad=False)
 
 

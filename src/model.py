@@ -15,6 +15,8 @@ class Config(object):
         self.use_pos = True
         self.use_chars = False
         self.use_word_embeddings = True
+        self.use_additional_features = True
+        self.additional_features_size = 1
         self.word_vocabulary_size = 2
         self.word_embedding_dim = 500
         self.word_embedding_dropout_p = 0.2
@@ -70,6 +72,9 @@ class RemotionRNN(nn.Module):
             self.grammeme_dropout = nn.Dropout(config.gram_dropout_p)
             rnn_input_size += config.gram_hidden_size
 
+        if config.use_additional_features:
+            rnn_input_size += config.additional_features_size
+
         self.rnn = nn.LSTM(rnn_input_size, config.rnn_hidden_size, config.rnn_n_layers,
                            dropout=config.rnn_dropout_p, bidirectional=config.rnn_bidirectional)
         self.rnn_output_dropout = nn.Dropout(config.rnn_output_dropout_p)
@@ -101,6 +106,8 @@ class RemotionRNN(nn.Module):
             grammeme = self.grammeme_activation(self.grammeme_dense(batch.gram_vectors))
             grammeme = self.grammeme_dropout(grammeme)
             rnn_input = torch.cat((rnn_input, grammeme), dim=2)
+        if self.config.use_additional_features:
+            rnn_input = torch.cat((rnn_input, batch.additional_features), dim=2)
         rnn_input = rnn_input.transpose(0, 1)
 
         assert rnn_input.size(1) == batch.word_indices.size(0)

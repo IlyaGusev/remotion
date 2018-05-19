@@ -47,12 +47,13 @@ def main(argv=None):
                 if xml_term.get("type")=="explicit" and xml_term.get("mark")=="Rel":
                     term_identifier = xml_term.get("from")+"_"+xml_term.get("to")
                     sentiment = xml_term.get("sentiment")
-                    test[str(review_id) + "_" + term_identifier] = sentiment
+                    key = str(review_id) + "_" + term_identifier
+                    test[key] = sentiment
     actual = []
     predicted = []
     out2write = ["","id\tactual\tpredicted"]
     for key in gold:
-        if gold[key] == "neutral":
+        if gold[key] == "neutral" or key not in test:
             continue
         actual.append(gold[key])
         predicted.append(test[key])
