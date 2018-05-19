@@ -5,6 +5,7 @@ import torch.optim as optim
 from torch.autograd import Variable
 from torchcrf import CRF
 
+
 class Config(object):
     def __init__(self):
         self.is_sequence_predictor = True
@@ -39,6 +40,7 @@ class Config(object):
     def load(self, filename):
         with open(filename, 'r', encoding='utf-8') as f:
             self.__dict__.update(json.loads(f.read()))
+
 
 class RemotionRNN(nn.Module):
     def __init__(self, config):
@@ -131,6 +133,7 @@ class RemotionRNN(nn.Module):
             return self.crf.decode(predictions.transpose(0, 1))
         else:
             return torch.argmax(nn.functional.softmax(predictions, dim=2), dim=2)
+
 
 def save_model(model, optimizer, filename, config_filename=None):
     model_state_dict = model.state_dict()

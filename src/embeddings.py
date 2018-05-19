@@ -1,10 +1,10 @@
-import numpy as np
 import torch
 import gensim
 
 from src.vocabulary import Vocabulary
 
-def get_embeddings(vocabulary, embeddings_filename, embeddings_dim, binary=False):
+
+def get_embeddings(vocabulary: Vocabulary, embeddings_filename, embeddings_dim, binary=False):
     embeddings = torch.div(torch.randn(vocabulary.size(), embeddings_dim), 100)
     w2v = gensim.models.KeyedVectors.load_word2vec_format(embeddings_filename, binary=binary)
     unknown_words_count = 0
@@ -19,6 +19,7 @@ def get_embeddings(vocabulary, embeddings_filename, embeddings_dim, binary=False
         filename=embeddings_filename
     ))
     return embeddings
+
 
 def shrink_w2v(input_filename, vocabulary, found_border, output_filename, print_step=100000):
     vocabulary_embeddings = dict()
@@ -45,7 +46,8 @@ def shrink_w2v(input_filename, vocabulary, found_border, output_filename, print_
                 if i in vocabulary_embeddings:
                     embedding = " ".join([str(j) for j in list(vocabulary_embeddings[i])])
                     w.write(word + " " + embedding + "\n")
-        print("Unknown examples:", words[:100])
+        print("Unknown examples:", list(words)[:100])
+
 
 def parse_line(line, vocabulary, vocabulary_words, embeddings):
     try:

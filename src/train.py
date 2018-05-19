@@ -104,6 +104,7 @@ def train_model(config_filename,
     config = Config()
     config.load(config_filename)
     use_cuda = torch.cuda.is_available()
+    print("Use cuda: ", use_cuda)
 
     config.word_vocabulary_size = vocabulary.size()
     config.char_count = len(char_set)

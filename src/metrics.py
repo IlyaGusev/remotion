@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.metrics import roc_curve, precision_recall_curve, f1_score, recall_score, roc_auc_score
 
+
 def plot_roc_auc(all_y, all_pred):
     fpr, tpr, _ = roc_curve(all_y, all_pred)
     plt.plot(fpr, tpr, color='darkorange')
@@ -14,6 +15,7 @@ def plot_roc_auc(all_y, all_pred):
     plt.legend(loc="lower right")
     plt.show()
 
+
 def plot_precision_recall(all_y, all_pred):
     precision, recall, thresholds = precision_recall_curve(all_y, all_pred)
     plt.step(recall, precision, color='b', alpha=0.2, where='post')
@@ -25,6 +27,7 @@ def plot_precision_recall(all_y, all_pred):
     plt.xlim([0.0, 1.0])
     plt.show()
 
+
 def plot_f1(all_y, all_pred):
     precision, recall, thresholds = precision_recall_curve(all_y, all_pred)
     f1 = [2*p*r/(p+r) if p != 0 and r != 0 else 0.0 for p, r in zip(precision, recall)][:len(thresholds)]
@@ -35,6 +38,7 @@ def plot_f1(all_y, all_pred):
     plt.ylim([0.0, 1.05])
     plt.xlim([0.0, 1.0])
     plt.show()
+
 
 def choose_threshold_by_f1(all_y, all_pred):
     precision, recall, thresholds = precision_recall_curve(all_y, all_pred)

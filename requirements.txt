@@ -4,4 +4,10 @@ scikit-learn==0.19.1
 gensim==3.4.0
 torch==0.4.0
 torchvision==0.2.1
-rnnmorph==0.2.2
+pytorch-crf==0.5.1
+rnnmorph==0.2.3
+nltk==3.3
+sentence_splitter==1.2
+matplotlib==2.2.2
+jupyter==1.0.0
+lxml==4.2.1
