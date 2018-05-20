@@ -1,11 +1,9 @@
-import os
 import xml.etree.ElementTree as ET
-import jsonpickle
 from nltk.tokenize import WordPunctTokenizer
 from sentence_splitter import SentenceSplitter
 
-from src.parser import Word, PosTaggedWord, Dataset
-from src.vocabulary import Vocabulary
+from src.parser import Word,Dataset
+
 
 class Aspect(object):
     def __init__(self, begin=0, end=0, target="", polarity=1, category="", aspect_type=0, mark=0):
@@ -73,6 +71,7 @@ class Aspect(object):
             hid=hex(id(self))
         )
 
+
 class Review(object):
     def __init__(self, text="", rid=0):
         self.text = text
@@ -92,6 +91,7 @@ class Review(object):
         aspects_xml = "".join([aspect.to_xml() for aspect in self.aspects])
         return '<review id="{rid}">\n<text>{text}</text>\n<aspects>\n{aspects}</aspects>\n</review>\n'.format(
             rid=self.rid, text=self.text.replace("&", "#"), aspects=aspects_xml)
+
 
 class SentiRuEvalDataset(Dataset):
     def parse(self, filename):
@@ -129,3 +129,11 @@ class SentiRuEvalDataset(Dataset):
                         tokenized_sentence.append(word)
                 reviews[-1].append(tokenized_sentence)
         return reviews
+
+    def get_categories(self):
+        categories = set()
+        for review in self.reviews:
+            for aspect in review.aspects:
+                categories.add(aspect.category)
+        categories = list(sorted(list(categories)))
+        return {category: i for i, category in enumerate(categories)}
