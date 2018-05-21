@@ -55,8 +55,8 @@ def main(argv=None):
     out2write = ["","id\tactual\tpredicted"]
 
     for categ in list(set(target_categories)):
-        print categ + "\t",
-    print "avg_all"
+        print(categ + "\t"),
+    print("avg_all")
     for categ in list(set(target_categories)):
         actual, predicted = [], []
         for key in gold:
@@ -68,18 +68,18 @@ def main(argv=None):
             actual.append(gold[key])
             predicted.append(test[key])
 
-        p,r,f,_ = metrics.precision_recall_fscore_support(actual, predicted, average="macro")
-        print str(f) + "\t",
+        p, r, f, _ = metrics.precision_recall_fscore_support(actual, predicted, average="macro")
+        print(str(f) + "\t"),
         avgs.append(f)
         out2write = [categ + " avg_f1=" + str(f)] + out2write
-    print np.average(avgs)
+    print(np.average(avgs))
     result_string = "avg_f1="+str(np.average(avgs))
 
     data_frame = pd.DataFrame({"col":[result_string] + out2write})
     domain = gold_file_name.split("_")[1]
     out_file_name = "eval_Д_"+domain+".csv"
     data_frame.to_csv(out_file_name, index=False, header=False, encoding="utf-8")
-    print "see "+out_file_name+" for details"
+    print("see "+out_file_name+" for details")
 
 if __name__ == "__main__":
     main(sys.argv[1:])

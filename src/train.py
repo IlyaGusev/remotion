@@ -1,5 +1,6 @@
 import random
 import copy
+from collections import Counter
 
 import torch
 import torch.optim as optim
@@ -9,7 +10,7 @@ from src.embeddings import get_embeddings
 from src.batch import get_batches
 
 
-def train_batch(model, batch, optimizer=None):
+def process_batch(model, batch, optimizer=None):
     if optimizer is not None:
         optimizer.zero_grad()
 
@@ -47,7 +48,7 @@ def train_model(config_filename,
 
     config.word_vocabulary_size = vocabulary.size()
     config.char_count = len(char_set)
-    gram_vector_size = len(train_data[0][0][0].vector)
+    gram_vector_size = len(train_data.reviews[0].sentences[0][0].vector)
     config.gram_vector_size = gram_vector_size
     config.char_max_word_length = max_word_length
 
@@ -60,10 +61,10 @@ def train_model(config_filename,
     optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=lr)
 
     train_size = 1 - val_size
-    border = int(len(train_data)*train_size)
+    border = int(len(train_data.reviews)*train_size)
     train_data = copy.deepcopy(train_data)
-    random.Random(seed).shuffle(train_data)
-    train_data, val_data = train_data[:border], train_data[border:]
+    random.Random(seed).shuffle(train_data.reviews)
+    train_data, val_data = train_data.reviews[:border], train_data.reviews[border:]
 
     prev_val_loss = float("inf")
     bad_count = 0
@@ -74,7 +75,7 @@ def train_model(config_filename,
                                     max_length, max_word_length, target_function, additional_function)
         for batch in train_batches:
             model.train()
-            loss = train_batch(model, batch, optimizer)
+            loss = process_batch(model, batch, optimizer)
             train_loss += loss
             train_count += 1
 
@@ -84,7 +85,7 @@ def train_model(config_filename,
                                   max_length, max_word_length, target_function, additional_function)
         for batch in val_batches:
             model.eval()
-            loss = train_batch(model, batch, None)
+            loss = process_batch(model, batch, None)
             val_loss += loss
             val_count += 1
 

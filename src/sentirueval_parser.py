@@ -77,6 +77,17 @@ class Review(object):
         self.text = text
         self.rid = rid
         self.aspects = []
+        self.sentences = []
+        self.categories = {}
+        self.sentiment_values = {
+            'positive': 3,
+            'neutral': 1,
+            'negative': 0,
+            'both': 2,
+            'absence': 4
+        }
+
+        self.rev_sentiment_values = {value: key for key, value in self.sentiment_values.items()}
 
     def parse(self, node):
         self.text = node.find(".//text").text
@@ -86,14 +97,32 @@ class Review(object):
             aspect = Aspect()
             aspect.parse(aspect_node)
             self.aspects.append(aspect)
+        for category_node in node.findall(".//category"):
+            category_name = category_node.get('name')
+            sentiment = category_node.get('sentiment')
+            self.categories[category_name] = self.sentiment_values[sentiment]
 
     def to_xml(self):
         aspects_xml = "".join([aspect.to_xml() for aspect in self.aspects])
-        return '<review id="{rid}">\n<text>{text}</text>\n<aspects>\n{aspects}</aspects>\n</review>\n'.format(
-            rid=self.rid, text=self.text.replace("&", "#"), aspects=aspects_xml)
+        categories_xml = ''
+        for name, sentiment_num in self.categories.items():
+            categories_xml += '<category name="{name}" sentiment="{sentiment}"/>\n'.format(
+                name=name,
+                sentiment=self.rev_sentiment_values[sentiment_num]
+            )
+
+        return '<review id="{rid}">\n<categories>\n{categories}</categories>\n<text>{text}</text>\n<aspects>\n{aspects}</aspects>\n</review>\n'.format(
+            rid=self.rid,
+            text=self.text.replace("&", "#"),
+            aspects=aspects_xml,
+            categories=categories_xml)
 
 
 class SentiRuEvalDataset(Dataset):
+    def __init__(self):
+        super().__init__()
+        self.language = "ru"
+
     def parse(self, filename):
         assert filename.endswith('xml')
         tree = ET.parse(filename)
@@ -103,14 +132,12 @@ class SentiRuEvalDataset(Dataset):
             review = Review()
             review.parse(review_node)
             self.reviews.append(review)
-        self.tokenized_reviews = self.tokenize()
-        self.pos_tagged_reviews = self.pos_tag()
+        self.tokenize()
+        self.pos_tag()
 
     def tokenize(self):
         sentence_splitter = SentenceSplitter(language='ru')
-        reviews = []
-        for review in self.reviews:
-            reviews.append([])
+        for i, review in enumerate(self.reviews):
             text = review.text
             sentences = sentence_splitter.split(text)
             words_borders = list(WordPunctTokenizer().span_tokenize(text))
@@ -127,13 +154,20 @@ class SentiRuEvalDataset(Dataset):
                                 word.add_opinion(opinion)
                                 opinion.words.append(word)
                         tokenized_sentence.append(word)
-                reviews[-1].append(tokenized_sentence)
-        return reviews
+                self.reviews[i].sentences.append(tokenized_sentence)
 
-    def get_categories(self):
+    def get_aspect_categories(self):
         categories = set()
         for review in self.reviews:
             for aspect in review.aspects:
                 categories.add(aspect.category)
+        categories = list(sorted(list(categories)))
+        return {category: i for i, category in enumerate(categories)}
+
+    def get_review_categories(self):
+        categories = set()
+        for review in self.reviews:
+            for category in review.categories.keys():
+                categories.add(category)
         categories = list(sorted(list(categories)))
         return {category: i for i, category in enumerate(categories)}
