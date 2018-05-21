@@ -1,6 +1,6 @@
 {
     "additional_features_size": 1,
-    "char_count": 140,
+    "char_count": 86,
     "char_dropout_p": 0.4,
     "char_embedding_dim": 4,
     "char_function_output_size": 30,
@@ -10,10 +10,10 @@
     "dense_size": 32,
     "gram_dropout_p": 0.4,
     "gram_hidden_size": 32,
-    "gram_vector_size": 52,
+    "gram_vector_size": 110,
     "is_multi_target": false,
     "is_sequence_predictor": true,
-    "output_size": 5,
+    "output_size": 25,
     "rnn_bidirectional": true,
     "rnn_dropout_p": 0.5,
     "rnn_hidden_size": 32,
@@ -25,7 +25,7 @@
     "use_crf": true,
     "use_pos": true,
     "use_word_embeddings": true,
-    "word_embedding_dim": 500,
+    "word_embedding_dim": 300,
     "word_embedding_dropout_p": 0.4,
-    "word_vocabulary_size": 9268
+    "word_vocabulary_size": 4091
 }

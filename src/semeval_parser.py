@@ -109,7 +109,7 @@ class SemEvalDataset(Dataset):
         super().__init__()
         self.language = language
 
-    def parse(self, filename):
+    def parse(self, filename, vectorizer_path=None):
         assert filename.endswith('xml')
         tree = ET.parse(filename)
         root = tree.getroot()
@@ -119,7 +119,7 @@ class SemEvalDataset(Dataset):
             review.parse(review_node)
             self.reviews.append(review)
         self.tokenize()
-        self.pos_tag()
+        self.pos_tag(vectorizer_path)
 
     def tokenize(self):
         for review in self.reviews:

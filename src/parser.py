@@ -1,9 +1,13 @@
 import os
 import jsonpickle
-from rnnmorph.predictor import RNNMorphPredictor
+from collections import namedtuple
+
 import spacy
+from rnnmorph.predictor import RNNMorphPredictor
 
 from src.vocabulary import Vocabulary
+
+WordFormOut = namedtuple("WordFormOut", "pos tag normal_form vector")
 
 
 class Word(object):
@@ -49,6 +53,51 @@ class PosTaggedWord(Word):
         )
 
 
+class SpacyVectorizer(object):
+    def __init__(self):
+        self.pos = set()
+        self.tags = set()
+        self.deps = set()
+
+    def add_sentence(self, text, model):
+        doc = model(text)
+        for word in doc:
+            self.pos.add(word.pos_)
+            self.tags.add(word.tag_)
+            self.deps.add(word.dep_)
+
+    def get_forms(self, text, model):
+        doc = model(text)
+        forms = []
+        for word in doc:
+            pos_part = self.__vectorize(self.pos, word.pos_)
+            tag_part = self.__vectorize(self.tags, word.tag_)
+            dep_part = self.__vectorize(self.deps, word.dep_)
+            vector = pos_part + tag_part + dep_part
+            forms.append(WordFormOut(pos=word.pos_, tag=word.tag_, normal_form=word.lemma_, vector=vector))
+        return forms
+
+    def is_empty(self):
+        return not (self.pos or self.tags or self.deps)
+
+    @staticmethod
+    def __vectorize(collection, element):
+        vector = [0 for _ in range(len(collection))]
+        l = list(sorted(collection))
+        if element in l:
+            vector[l.index(element)] = 1
+        return vector
+
+    def save(self, dump_filename) -> None:
+        with open(dump_filename, "w") as f:
+            f.write(jsonpickle.encode(self, f))
+
+    def load(self, dump_filename):
+        with open(dump_filename, "r") as f:
+            vectorizer = jsonpickle.decode(f.read())
+            self.__dict__.update(vectorizer.__dict__)
+
+
 class Dataset(object):
     def __init__(self):
         self.reviews = []
@@ -62,7 +111,7 @@ class Dataset(object):
     def tokenize(self):
         raise NotImplementedError()
 
-    def pos_tag(self):
+    def pos_tag(self, vectorizer_path=None):
         if self.language == "ru":
             os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
             predictor = RNNMorphPredictor()
@@ -70,19 +119,26 @@ class Dataset(object):
                 for i, sentence in enumerate(review.sentences):
                     words = [word.text for word in sentence]
                     forms = predictor.predict_sentence_tags(words)
-                    pos_tagged_sentence = []
                     for word_idx, form in enumerate(forms):
-                        pos_tagged_word = PosTaggedWord(sentence[word_idx], form.pos, form.tag, form.vector)
-                        pos_tagged_sentence.append(pos_tagged_word)
-                    review.sentences[i] = pos_tagged_sentence
+                        sentence[word_idx] = PosTaggedWord(sentence[word_idx], form.pos, form.tag, form.vector)
             os.environ['CUDA_VISIBLE_DEVICES'] = '0'
         elif self.language == "en":
-            nlp = spacy.load('en_core_web_sm')
+            model = spacy.load('en_core_web_sm')
+            vectorizer = SpacyVectorizer()
+            if vectorizer_path is None or not os.path.exists(vectorizer_path):
+                for review in self.reviews:
+                    for sentence in review.parsed_sentences:
+                        vectorizer.add_sentence(sentence.text, model)
+                if vectorizer_path is not None:
+                    vectorizer.save(vectorizer_path)
+            else:
+                vectorizer.load(vectorizer_path)
             for review in self.reviews:
-                for i, sentence in enumerate(review.sentences):
+                for sentence in review.sentences:
                     text = " ".join([word.text for word in sentence])
-                    doc = nlp(text)
-                    tags = [(w.pos_, w.tag_, w.dep_) for w in doc]
+                    forms = vectorizer.get_forms(text, model)
+                    for i, (word, form) in enumerate(zip(sentence, forms)):
+                        sentence[i] = PosTaggedWord(word, form.pos, form.tag, form.vector)
 
     def save(self, filename):
         with open(filename, "w", encoding='utf-8') as w:
