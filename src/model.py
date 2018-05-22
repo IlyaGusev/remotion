@@ -8,47 +8,7 @@ from torch.nn.utils.rnn import pad_packed_sequence as unpack
 from torchcrf import CRF
 
 from src.batch import VarBatch
-
-
-class Config(object):
-    def __init__(self):
-        self.is_sequence_predictor = True
-        self.use_crf = False
-        self.use_pos = True
-        self.use_chars = False
-        self.use_word_embeddings = True
-        self.use_additional_features = True
-        self.is_multi_target = False
-        self.target_count = 5
-        self.additional_features_size = 1
-        self.word_vocabulary_size = 2
-        self.word_embedding_dim = 500
-        self.word_embedding_dropout_p = 0.2
-        self.rnn_n_layers = 2
-        self.rnn_hidden_size = 50
-        self.rnn_dropout_p = 0.5
-        self.rnn_bidirectional = True
-        self.rnn_output_dropout_p = 0.3
-        self.gram_vector_size = 52
-        self.gram_hidden_size = 30
-        self.gram_dropout_p = 0.2
-        self.char_count = 50
-        self.char_embedding_dim = 4
-        self.char_function_output_size = 50
-        self.char_dropout_p = 0.2
-        self.char_max_word_length = 30
-        self.dense_size = 32
-        self.dense_dropout_p = 0.3
-        self.output_size = 3
-
-    def save(self, filename):
-        with open(filename, 'w', encoding='utf-8') as f:
-            f.write(json.dumps(self.__dict__, sort_keys=True, indent=4)+"\n")
-
-    def load(self, filename):
-        with open(filename, 'r', encoding='utf-8') as f:
-            self.__dict__.update(json.loads(f.read()))
-
+from src.config import Config
 
 class RemotionRNN(nn.Module):
     def __init__(self, config):
@@ -186,12 +146,10 @@ class RemotionRNN(nn.Module):
                 return [torch.argmax(nn.functional.softmax(pred, dim=1), dim=1) for pred in predictions]
 
 
-def save_model(model, optimizer, filename, config_filename=None):
+def save_model(model, optimizer, filename):
     model_state_dict = model.state_dict()
     for key in model_state_dict.keys():
         model_state_dict[key] = model_state_dict[key].cpu()
-    if config_filename is not None:
-        model.config.save(config_filename)
     torch.save({
         'model': model_state_dict,
         'optimizer': optimizer.state_dict()
@@ -202,9 +160,9 @@ def load_model(model_filename, config_filename, use_cuda):
     state_dict = torch.load(model_filename)
     config = Config()
     config.load(config_filename)
-    model = RemotionRNN(config)
+    model = RemotionRNN(config.model_config)
     model.load_state_dict(state_dict['model'])
-    if config.use_word_embeddings:
+    if config.model_config.use_word_embeddings:
         model.embedding.weight.requires_grad = False
     model = model.cuda() if use_cuda else model
 

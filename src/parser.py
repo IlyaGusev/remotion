@@ -6,6 +6,7 @@ import spacy
 from rnnmorph.predictor import RNNMorphPredictor
 
 from src.vocabulary import Vocabulary
+from src.config import DataConfig
 
 WordFormOut = namedtuple("WordFormOut", "pos tag normal_form vector")
 
@@ -173,3 +174,32 @@ class Dataset(object):
         for review in self.reviews:
             lengths.append(sum([len(sentence) for sentence in review.sentences]))
         return lengths
+
+def get_dataset(filename, competition, language, domain, is_train=True, vectorizer_path=None):
+    if competition == "semeval":
+        from src.semeval_parser import SemEvalDataset
+        data = SemEvalDataset(language=language)
+    elif competition == "sentirueval":
+        from src.sentirueval_parser import SentiRuEvalDataset
+        data = SentiRuEvalDataset(language=language)
+    else:
+        assert False
+    if filename.endswith("xml"):
+        data.parse(filename, vectorizer_path)
+        data.save("{}_{}_{}_{}.json".format(competition, language, domain, "train" if is_train else "test"))
+    elif filename.endswith("json"):
+        data.load(filename)
+    else:
+        assert False
+    print("Num of reviews: " + str(len(data.reviews)))
+    print("Num of opinions: " + str(data.get_opinion_count()))
+    print("Max review length: " + str(max(data.get_lengths())))
+    print(data.reviews[0].sentences[0])
+    print(data.reviews[0].sentences[0])
+    return data
+
+def get_data(config: DataConfig):
+    train_data = get_dataset(config.train_filename, config.competition, config.language, config.domain, True, config.vectorizer_path)
+    test_data = get_dataset(config.test_filename, config.competition, config.language, config.domain, False, config.vectorizer_path)
+    return train_data, test_data
+

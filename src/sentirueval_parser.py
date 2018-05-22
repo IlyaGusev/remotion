@@ -123,7 +123,7 @@ class SentiRuEvalDataset(Dataset):
         super().__init__()
         self.language = "ru"
 
-    def parse(self, filename):
+    def parse(self, filename, vectorizer=None):
         assert filename.endswith('xml')
         tree = ET.parse(filename)
         root = tree.getroot()
