@@ -147,3 +147,6 @@ class SemEvalDataset(Dataset):
                 categories.add(aspect.cat_first+"#"+aspect.cat_second)
         categories = list(sorted(list(categories)))
         return {category: i for i, category in enumerate(categories)}
+
+    def get_review_categories(self):
+        return {}

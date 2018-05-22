@@ -76,15 +76,53 @@ class Config(object):
             self.data_config.__dict__.update(d['data_config'])
 
 def get_targets_additionals(train_data):
-    categories = train_data.get_aspect_categories()
-    rev_categories = {value: key for key, value in categories.items()}
-    print(categories)
-    print(rev_categories)
+    aspect_categories = train_data.get_aspect_categories()
+    rev_aspect_categories = {value: key for key, value in aspect_categories.items()}
+    print("Aspect categories: ", len(aspect_categories))
+
+    review_categories = train_data.get_review_categories()
+    rev_review_categories = {value:key for key, value in review_categories.items()}
+    print("Review categories: ", len(review_categories))
 
     def get_target_func_from_word_func(word_func):
         def target_func(review):
             return [word_func(word) for sentence in review.sentences for word in sentence]
         return target_func
+
+    def sentirueval_word_function_a(word):
+        for opinion in word.opinions:
+            if opinion.type != 0 or opinion.mark != 0:
+                continue
+            if opinion.words[0].text == word.text:
+                return 1
+            return 2
+        return 0
+
+    def sentirueval_word_function_b(word):
+        for opinion in word.opinions:
+            if opinion.mark != 0:
+                continue
+            opinion_type = opinion.type
+            if opinion.words[0].text == word.text:
+                return 2 * opinion_type + 1
+            return 2 * opinion_type + 2
+        return 0
+
+    def polarity_word_function(word):
+        for opinion in word.opinions:
+            return opinion.polarity + 1
+        return 0
+
+    def sentirueval_word_function_d(word):
+        for opinion in word.opinions:
+            return aspect_categories[opinion.category] + 1
+        return 0
+
+    def sentirueval_target_function_e(review):
+         values = []
+         for key in sorted(review_categories.keys()):
+             values.append(review.categories[key])
+         return values[0]
 
     def semeval_word_function_12(word):
         for opinion in word.opinions:
@@ -92,26 +130,31 @@ def get_targets_additionals(train_data):
             if opinion.words[0].text == word.text:
                 return 2 * opinion_category + 1
             return 2 * opinion_category + 2
-        return 0
+        return 0 
 
-    def semeval_word_function_3(word):
-        for opinion in word.opinions:
-            return opinion.polarity + 1
-        return 0
-
-    def semeval_additional_function_3(word):
+    def opinion_additional_function(word):
         if word.opinions:
             return [len(word.opinions)]
-        return [0]
+        return 0
 
     targets = {
         'semeval-12': get_target_func_from_word_func(semeval_word_function_12),
-        'semeval-3': get_target_func_from_word_func(semeval_word_function_3)
+        'semeval-3': get_target_func_from_word_func(polarity_word_function),
+        'sentirueval-a': get_target_func_from_word_func(sentirueval_word_function_a),
+        'sentirueval-b': get_target_func_from_word_func(sentirueval_word_function_b),
+        'sentirueval-c': get_target_func_from_word_func(polarity_word_function),
+        'sentirueval-d': get_target_func_from_word_func(sentirueval_word_function_d),
+        'sentirueval-e': sentirueval_target_function_e
     }
 
     additionals = {
-        'semeval-12': semeval_additional_function_3,
-        'semeval-3': None
+        'semeval-12': opinion_additional_function,
+        'semeval-3': None,
+        'sentirueval-a': None,
+        'sentirueval-b': None,
+        'sentirueval-c': opinion_additional_function,
+        'sentirueval-d': opinion_additional_function,
+        'sentirueval-e': None
     }
 
-    return targets, additionals
+    return targets, additionals, rev_aspect_categories

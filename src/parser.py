@@ -175,13 +175,19 @@ class Dataset(object):
             lengths.append(sum([len(sentence) for sentence in review.sentences]))
         return lengths
 
+    def get_aspect_categories(self):
+        return {}
+
+    def get_review_categories(self):
+        return {}
+
 def get_dataset(filename, competition, language, domain, is_train=True, vectorizer_path=None):
     if competition == "semeval":
         from src.semeval_parser import SemEvalDataset
         data = SemEvalDataset(language=language)
     elif competition == "sentirueval":
         from src.sentirueval_parser import SentiRuEvalDataset
-        data = SentiRuEvalDataset(language=language)
+        data = SentiRuEvalDataset()
     else:
         assert False
     if filename.endswith("xml"):
