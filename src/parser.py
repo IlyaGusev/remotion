@@ -181,7 +181,8 @@ class Dataset(object):
     def get_review_categories(self):
         return {}
 
-def get_dataset(filename, competition, language, domain, is_train=True, vectorizer_path=None):
+
+def get_dataset(filename, competition, language, domain, is_train=True, vectorizer_path=None, clear_cache=False):
     if competition == "semeval":
         from src.semeval_parser import SemEvalDataset
         data = SemEvalDataset(language=language)
@@ -190,13 +191,20 @@ def get_dataset(filename, competition, language, domain, is_train=True, vectoriz
         data = SentiRuEvalDataset()
     else:
         assert False
-    if filename.endswith("xml"):
-        data.parse(filename, vectorizer_path)
-        data.save("{}_{}_{}_{}.json".format(competition, language, domain, "train" if is_train else "test"))
-    elif filename.endswith("json"):
-        data.load(filename)
+    json_filename = "{}_{}_{}_{}.json".format(competition, language, domain, "train" if is_train else "test")
+    if os.path.exists(json_filename) and not clear_cache:
+        data.load(json_filename)
     else:
-        assert False
+        if filename.endswith("xml"):
+            if clear_cache and os.path.exists(vectorizer_path):
+                os.remove(vectorizer_path)
+            data.parse(filename, vectorizer_path)
+            data.save(json_filename)
+        elif filename.endswith("json"):
+            data.load(filename)
+            data.save(json_filename)
+        else:
+            assert False
     print("Num of reviews: " + str(len(data.reviews)))
     print("Num of opinions: " + str(data.get_opinion_count()))
     print("Max review length: " + str(max(data.get_lengths())))
@@ -204,8 +212,11 @@ def get_dataset(filename, competition, language, domain, is_train=True, vectoriz
     print(data.reviews[0].sentences[0])
     return data
 
-def get_data(config: DataConfig):
-    train_data = get_dataset(config.train_filename, config.competition, config.language, config.domain, True, config.vectorizer_path)
-    test_data = get_dataset(config.test_filename, config.competition, config.language, config.domain, False, config.vectorizer_path)
+
+def get_data(config: DataConfig, competition):
+    train_data = get_dataset(config.train_filename, competition, config.language,
+                             config.domain, True, config.vectorizer_path, config.clear_cache)
+    test_data = get_dataset(config.test_filename, competition, config.language,
+                            config.domain, False, config.vectorizer_path, config.clear_cache)
     return train_data, test_data
 

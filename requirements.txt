@@ -11,3 +11,4 @@ sentence_splitter==1.2
 matplotlib==2.2.2
 jupyter==1.0.0
 lxml==4.2.1
+pandas==0.23.0

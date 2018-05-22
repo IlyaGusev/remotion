@@ -25,7 +25,8 @@ def process_batch(model, batch, optimizer=None):
     return loss.data.item()
 
 
-def train_model(config_filename, train_data, vocabulary, char_set, targets, additionals):
+def train_model(config_filename, train_data, vocabulary, char_set, targets,
+                additionals, output_sizes, max_length):
     config = Config()
     config.load(config_filename)
 
@@ -38,18 +39,22 @@ def train_model(config_filename, train_data, vocabulary, char_set, targets, addi
         torch.cuda.manual_seed_all(config.seed)
         torch.backends.cudnn.deterministic = True
 
+    task_key = config.competition + "-" + config.task_type
+    gram_vector_size = len(train_data.reviews[0].sentences[0][0].vector)
     config.model_config.word_vocabulary_size = vocabulary.size()
     config.model_config.char_count = len(char_set)
-    gram_vector_size = len(train_data.reviews[0].sentences[0][0].vector)
     config.model_config.gram_vector_size = gram_vector_size
-    config.model_config.char_max_word_length = config.word_max_length
+    config.model_config.output_size = output_sizes[task_key]
+    config.max_length = max_length
+    config.save(config_filename)
 
     model = RemotionRNN(config.model_config)
     if config.model_config.use_word_embeddings and config.use_pretrained_embedding:
         embeddings = get_embeddings(vocabulary, config.embeddings_filename,
-            config.model_config.word_embedding_dim)
+                                    config.model_config.word_embedding_dim)
         model.embedding.weight = torch.nn.Parameter(embeddings, requires_grad=False)
     model = model.cuda() if use_cuda else model
+    print(model)
 
     optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=config.lr)
 
@@ -59,7 +64,6 @@ def train_model(config_filename, train_data, vocabulary, char_set, targets, addi
     random.Random(config.seed).shuffle(train_data.reviews)
     train_data, val_data = train_data.reviews[:border], train_data.reviews[border:]
 
-    task_key = config.data_config.competition + "-" + config.task_type
     target_function = targets[task_key]
     additional_function = additionals[task_key]
 
@@ -69,8 +73,8 @@ def train_model(config_filename, train_data, vocabulary, char_set, targets, addi
         train_loss = 0
         train_count = 0
         train_batches = get_batches(train_data, vocabulary, char_set, config.batch_size,
-                                    config.max_length, config.word_max_length, target_function,
-                                    additional_function)
+                                    config.max_length, config.model_config.char_max_word_length,
+                                    target_function, additional_function)
         for batch in train_batches:
             model.train()
             loss = process_batch(model, batch, optimizer)
@@ -80,8 +84,8 @@ def train_model(config_filename, train_data, vocabulary, char_set, targets, addi
         val_loss = 0
         val_count = 0
         val_batches = get_batches(val_data, vocabulary, char_set, config.batch_size,
-                                  config.max_length, config.word_max_length, target_function,
-                                  additional_function)
+                                  config.max_length, config.model_config.char_max_word_length,
+                                  target_function, additional_function)
         for batch in val_batches:
             model.eval()
             loss = process_batch(model, batch, None)

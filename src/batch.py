@@ -35,7 +35,8 @@ class Batch:
             gram_vectors.append([0 for _ in range(gram_vector_size)])
         gram_vectors = gram_vectors[:max_length]
 
-        chars = [[char_set.find(ch) if char_set.find(ch) != -1 else 0 for ch in word][:max_word_length] for word in words_texts]
+        chars = [[char_set.find(ch) if char_set.find(ch) != -1 else 0 for ch in word][:max_word_length]
+                 for word in words_texts]
         chars = [word + [0 for _ in range(max_word_length - len(word))] for word in chars]
         chars += [[0 for _ in range(max_word_length)] for _ in range(max_length - len(chars))]
         chars = chars[:max_length]

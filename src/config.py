@@ -1,6 +1,7 @@
 import json
 import copy
 
+
 class ModelConfig(object):
     def __init__(self):
         self.is_sequence_predictor = True
@@ -32,27 +33,29 @@ class ModelConfig(object):
         self.dense_dropout_p = 0.3
         self.output_size = 3
 
+
 class DataConfig(object):
     def __init__(self):
         self.language = "en"
-        self.competition = "semeval"
         self.domain = "rest"
         self.train_filename = ""
         self.test_filename = ""
         self.vectorizer_path = "vectorizer.json"
+        self.clear_cache = False
+
 
 class Config(object):
     def __init__(self):
+        self.competition = "semeval"
         self.task_type = "a"
-        self.embeddings_filename = ""
         self.val_size = 0.2
         self.epochs = 100
         self.lr = 0.001
         self.batch_size = 8
         self.patience = 2
         self.max_length = 300
-        self.word_max_length = 30
         self.use_pretrained_embedding = True
+        self.embeddings_filename = ""
         self.data_config = DataConfig()
         self.model_config = ModelConfig()
         self.output_filename = "submission.xml"
@@ -74,6 +77,7 @@ class Config(object):
             self.model_config.__dict__.update(d['model_config'])
             self.data_config = DataConfig()
             self.data_config.__dict__.update(d['data_config'])
+
 
 def get_targets_additionals(train_data):
     aspect_categories = train_data.get_aspect_categories()
@@ -126,7 +130,7 @@ def get_targets_additionals(train_data):
 
     def semeval_word_function_12(word):
         for opinion in word.opinions:
-            opinion_category = categories[opinion.cat_first+"#"+opinion.cat_second]
+            opinion_category = aspect_categories[opinion.cat_first+"#"+opinion.cat_second]
             if opinion.words[0].text == word.text:
                 return 2 * opinion_category + 1
             return 2 * opinion_category + 2
@@ -135,7 +139,7 @@ def get_targets_additionals(train_data):
     def opinion_additional_function(word):
         if word.opinions:
             return [len(word.opinions)]
-        return 0
+        return [0]
 
     targets = {
         'semeval-12': get_target_func_from_word_func(semeval_word_function_12),
@@ -148,8 +152,8 @@ def get_targets_additionals(train_data):
     }
 
     additionals = {
-        'semeval-12': opinion_additional_function,
-        'semeval-3': None,
+        'semeval-12': None,
+        'semeval-3': opinion_additional_function,
         'sentirueval-a': None,
         'sentirueval-b': None,
         'sentirueval-c': opinion_additional_function,
@@ -157,4 +161,14 @@ def get_targets_additionals(train_data):
         'sentirueval-e': None
     }
 
-    return targets, additionals, rev_aspect_categories
+    output_sizes = {
+        'semeval-1': 2 * len(aspect_categories) + 1,
+        'semeval-12': 2 * len(aspect_categories) + 1,
+        'semeval-3': 5,
+        'sentirueval-a': 3,
+        'sentirueval-b': 7,
+        'sentirueval-c': 5,
+        'sentirueval-d': 2 * len(aspect_categories) + 1
+    }
+
+    return targets, additionals, rev_aspect_categories, output_sizes

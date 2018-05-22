@@ -10,6 +10,7 @@ from torchcrf import CRF
 from src.batch import VarBatch
 from src.config import Config
 
+
 class RemotionRNN(nn.Module):
     def __init__(self, config):
         super().__init__()

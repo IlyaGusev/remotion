@@ -9,8 +9,8 @@ from src.semeval_parser import Opinion
 from src.sentirueval_parser import Review as SentiRuEvalReview
 from src.semeval_parser import Review as SemEvalReview, Sentence
 
-def process_token(token, pred_class, aspect, new_review, done_opinions, competition, task_type):
-    sid = token.sid
+
+def process_token(token, pred_class, aspect, new_review, done_opinions, competition, task_type, rev_categories):
     if competition == "semeval" and task_type == '12':
         if pred_class % 2 == 0 and pred_class != 0 and aspect.is_empty():
             pred_class -= 1
@@ -40,7 +40,7 @@ def process_token(token, pred_class, aspect, new_review, done_opinions, competit
             if opinion in done_opinions:
                 continue
             aspect = Opinion(begin=opinion.begin, end=opinion.end,
-                             polarity=pred_class-1, cat_first=opinion.cat_first,
+                             polarity=pred_class-1 if pred_class > 0 else 3, cat_first=opinion.cat_first,
                              cat_second=opinion.cat_second,
                              target=opinion.target.replace('"', "'").replace('&', '#'))
             done_opinions.add(opinion)
@@ -72,8 +72,8 @@ def process_token(token, pred_class, aspect, new_review, done_opinions, competit
             if opinion in done_opinions:
                 continue
             aspect = Aspect(mark=opinion.mark, aspect_type=opinion.type,
-                begin=opinion.begin, end=opinion.end,
-                polarity=pred_class-1, arget=opinion.target.replace('"', "'").replace('&', '#'))
+                            begin=opinion.begin, end=opinion.end,
+                            polarity=pred_class-1, target=opinion.target.replace('"', "'").replace('&', '#'))
             done_opinions.add(opinion)
             new_review.aspects.append(aspect)
     elif competition == "sentirueval" and task_type == "d":
@@ -83,40 +83,42 @@ def process_token(token, pred_class, aspect, new_review, done_opinions, competit
             if opinion in done_opinions:
                 continue
             aspect = Aspect(mark=opinion.mark, aspect_type=opinion.type,
-                begin=opinion.begin, end=opinion.end,
-                polarity=opinion.polarity, category=rev_categories[pred_class-1],
-                target=opinion.target.replace('"', "'").replace('&', '#'))
+                            begin=opinion.begin, end=opinion.end,
+                            polarity=opinion.polarity, category=rev_categories[pred_class-1],
+                            target=opinion.target.replace('"', "'").replace('&', '#'))
             done_opinions.add(opinion)
             new_review.aspects.append(aspect)
     return aspect
 
 
-def get_new_review(review, review_pred, is_sequence_prediction, competition, task_type, length):
-    if is_sequence_prediction:
-        if competition == "semeval":
-            new_review = SemEvalReview(rid=review.rid)
-            for sentence in review.parsed_sentences:
-                new_review.parsed_sentences.append(Sentence(sentence.sid, sentence.text))
-            current_aspect = Opinion()
-        elif competition == "sentirueval":
-            new_review = SentiRuEvalReview(rid=review.rid, text=review.text)
-            current_aspect = Aspect(mark=0, aspect_type=0)
-        else:
-            assert False
-        tokens = [word for sentence in review.sentences for word in sentence]
-        done_opinions = set()
+def get_new_review(review, review_pred, competition, task_type, rev_categories, is_sequence_prediction=True):
+    # if is_sequence_prediction:
+    if competition == "semeval":
+        new_review = SemEvalReview(rid=review.rid)
+        for sentence in review.parsed_sentences:
+            new_review.parsed_sentences.append(Sentence(sentence.sid, sentence.text))
+        current_aspect = Opinion()
+    elif competition == "sentirueval":
+        new_review = SentiRuEvalReview(rid=review.rid, text=review.text)
+        current_aspect = Aspect(mark=0, aspect_type=0)
+    else:
+        assert False
+    tokens = [word for sentence in review.sentences for word in sentence]
+    done_opinions = set()
 
-        for i, token in enumerate(tokens):
-            pred_class = review_pred[i].cpu().item()
-            current_aspect = process_token(token, pred_class, current_aspect, new_review, done_opinions, competition, task_type)
-        if competition == "sentirueval" and (task_type == 'a' or task_type == 'b') and not current_aspect.is_empty():
-            new_review.aspects.append(aspect)
-        elif competition == "semeval" and config.task_type == '12' and not current_aspect.is_empty():
-            for sentence in new_review.parsed_sentences:
-                if sentence.sid == token.sid:
-                    sentence.aspects.append(aspect)
-            new_review.aspects.append(aspect)
+    for i, token in enumerate(tokens):
+        pred_class = review_pred[i].cpu().item()
+        current_aspect = process_token(token, pred_class, current_aspect, new_review,
+                                       done_opinions, competition, task_type, rev_categories)
+    if competition == "sentirueval" and (task_type == 'a' or task_type == 'b') and not current_aspect.is_empty():
+        new_review.aspects.append(current_aspect)
+    elif competition == "semeval" and task_type == '12' and not current_aspect.is_empty():
+        for sentence in new_review.parsed_sentences:
+            if sentence.sid == tokens[-1].sid:
+                sentence.aspects.append(current_aspect)
+        new_review.aspects.append(current_aspect)
     return new_review
+
 
 def predict(config_filename, test_data, vocabulary, char_set, targets, additionals, rev_categories):
     config = Config()
@@ -125,13 +127,12 @@ def predict(config_filename, test_data, vocabulary, char_set, targets, additiona
     use_cuda = torch.cuda.is_available()
     model, _ = load_model(config.model_filename, config_filename, use_cuda)
     model.eval()
-    gram_vector_size =len(test_data.reviews[0].sentences[0][0].vector)
 
-    competition = config.data_config.competition
+    competition = config.competition
     task_type = config.task_type
     task_key = competition + "-" + task_type
     test_batches = get_batches(test_data.reviews, vocabulary, char_set, 1,
-                               config.max_length, config.word_max_length,
+                               config.max_length, config.model_config.char_max_word_length,
                                targets[task_key], additionals[task_key])
     new_reviews = []
     for review, batch in zip(test_data.reviews, test_batches):
@@ -141,7 +142,7 @@ def predict(config_filename, test_data, vocabulary, char_set, targets, additiona
             review_pred = predictions[0][:length]
         else:
             review_pred = predictions[0, :length]
-        new_review = get_new_review(review, review_pred, True, competition, task_type, length)
+        new_review = get_new_review(review, review_pred, competition, task_type, rev_categories)
         new_reviews.append(new_review)
 
     xml = '<?xml version="1.0" ?>\n'
