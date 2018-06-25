@@ -102,8 +102,6 @@ class SpacyVectorizer(object):
 class Dataset(object):
     def __init__(self):
         self.reviews = []
-        self.tokenized_reviews = []
-        self.pos_tagged_reviews = []
         self.language = ""
 
     def parse(self, filename):
@@ -112,34 +110,28 @@ class Dataset(object):
     def tokenize(self):
         raise NotImplementedError()
 
-    def pos_tag(self, vectorizer_path=None):
-        if self.language == "ru":
+    def print_stat(self):
+        raise NotImplementedError()
+
+    def pos_tag(self):
+        if self.language == "ru" or self.language == "en":
             os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
-            predictor = RNNMorphPredictor()
+            predictor = RNNMorphPredictor(language=self.language)
+            sentences = []
             for review in self.reviews:
                 for i, sentence in enumerate(review.sentences):
                     words = [word.text for word in sentence]
-                    forms = predictor.predict_sentence_tags(words)
-                    for word_idx, form in enumerate(forms):
-                        sentence[word_idx] = PosTaggedWord(sentence[word_idx], form.pos, form.tag, form.vector)
-            os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-        elif self.language == "en":
-            model = spacy.load('en_core_web_sm')
-            vectorizer = SpacyVectorizer()
-            if vectorizer_path is None or not os.path.exists(vectorizer_path):
-                for review in self.reviews:
-                    for sentence in review.parsed_sentences:
-                        vectorizer.add_sentence(sentence.text, model)
-                if vectorizer_path is not None:
-                    vectorizer.save(vectorizer_path)
-            else:
-                vectorizer.load(vectorizer_path)
+                    sentences.append(words)
+            sentences_forms = predictor.predict_sentences(sentences, 32, False)
+            offset = 0
             for review in self.reviews:
-                for sentence in review.sentences:
-                    text = " ".join([word.text for word in sentence])
-                    forms = vectorizer.get_forms(text, model)
-                    for i, (word, form) in enumerate(zip(sentence, forms)):
-                        sentence[i] = PosTaggedWord(word, form.pos, form.tag, form.vector)
+                for i, sentence in enumerate(review.sentences):
+                    forms = sentences_forms[offset+i]
+                    for word_idx, form in enumerate(forms):
+                        sentence[word_idx] = PosTaggedWord(sentence[word_idx], form.pos,
+                                                           form.tag, [int(j) for j in form.vector])
+                offset += len(review.sentences)
+            os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
     def save(self, filename):
         with open(filename, "w", encoding='utf-8') as w:
@@ -182,41 +174,40 @@ class Dataset(object):
         return {}
 
 
-def get_dataset(filename, competition, language, domain, is_train=True, vectorizer_path=None, clear_cache=False):
+def get_dataset(filename, competition, config: DataConfig, is_train=True):
     if competition == "semeval":
         from src.semeval_parser import SemEvalDataset
-        data = SemEvalDataset(language=language)
+        data = SemEvalDataset(language=config.language)
     elif competition == "sentirueval":
         from src.sentirueval_parser import SentiRuEvalDataset
         data = SentiRuEvalDataset()
+    elif competition == "imdb":
+        from src.imdb_parser import IMDBDataset
+        data = IMDBDataset()
     else:
         assert False
-    json_filename = "{}_{}_{}_{}.json".format(competition, language, domain, "train" if is_train else "test")
-    if os.path.exists(json_filename) and not clear_cache:
-        data.load(json_filename)
+
+    if not os.path.exists("cache"):
+        os.mkdir("cache")
+    cache_filename = "cache/{}_{}_{}_{}.json".format(
+        competition, config.language, config.domain, "train" if is_train else "test")
+    if os.path.exists(cache_filename) and not config.clear_cache:
+        data.load(cache_filename)
     else:
-        if filename.endswith("xml"):
-            if clear_cache and os.path.exists(vectorizer_path):
-                os.remove(vectorizer_path)
-            data.parse(filename, vectorizer_path)
-            data.save(json_filename)
+        if filename.endswith("xml") or filename.endswith("tsv") and competition == "imdb":
+            data.parse(filename)
+            # data.save(cache_filename)
         elif filename.endswith("json"):
             data.load(filename)
-            data.save(json_filename)
+            data.save(cache_filename)
         else:
             assert False
-    print("Num of reviews: " + str(len(data.reviews)))
-    print("Num of opinions: " + str(data.get_opinion_count()))
-    print("Max review length: " + str(max(data.get_lengths())))
-    print(data.reviews[0].sentences[0])
-    print(data.reviews[0].sentences[0])
+    data.print_stat()
     return data
 
 
 def get_data(config: DataConfig, competition):
-    train_data = get_dataset(config.train_filename, competition, config.language,
-                             config.domain, True, config.vectorizer_path, config.clear_cache)
-    test_data = get_dataset(config.test_filename, competition, config.language,
-                            config.domain, False, config.vectorizer_path, config.clear_cache)
+    train_data = get_dataset(config.train_filename, competition, config, True)
+    test_data = get_dataset(config.test_filename, competition, config, False)
     return train_data, test_data
 

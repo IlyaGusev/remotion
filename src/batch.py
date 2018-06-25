@@ -3,7 +3,13 @@ from torch.autograd import Variable
 
 
 class Batch:
-    def __init__(self):
+    def __init__(self, enable_gram=True, enable_word_indices=True,
+                 enable_char_indices=True, enable_additional=True):
+        self.enable_word_indices = enable_word_indices
+        self.enable_gram = enable_gram
+        self.enable_char_indices = enable_char_indices
+        self.enable_additional = enable_additional
+
         self.word_indices = []
         self.gram_vectors = []
         self.char_indices = []
@@ -22,41 +28,45 @@ class Batch:
 
     def add_review(self, review, vocabulary, char_set, max_length, max_word_length,
                    target_function, additional_function):
-        gram_vector_size = len(review.sentences[0][0].vector)
         review_words = [word for sentence in review.sentences for word in sentence]
-
         words_texts = [word.text for word in review_words]
-        text = " ".join([text.lower() for text in words_texts])
-        indices = vocabulary.get_indices(text)
-        indices = vocabulary.pad_indices(indices, max_length)[:max_length]
 
-        gram_vectors = [word.vector for word in review_words]
-        for _ in range(max_length - len(gram_vectors)):
-            gram_vectors.append([0 for _ in range(gram_vector_size)])
-        gram_vectors = gram_vectors[:max_length]
+        if self.enable_word_indices:
+            text = " ".join([text.lower() for text in words_texts])
+            indices = vocabulary.get_indices(text)
+            indices = vocabulary.pad_indices(indices, max_length)[:max_length]
+            self.word_indices.append(indices)
 
-        chars = [[char_set.find(ch) if char_set.find(ch) != -1 else 0 for ch in word][:max_word_length]
-                 for word in words_texts]
-        chars = [word + [0 for _ in range(max_word_length - len(word))] for word in chars]
-        chars += [[0 for _ in range(max_word_length)] for _ in range(max_length - len(chars))]
-        chars = chars[:max_length]
+        if self.enable_gram:
+            gram_vector_size = len(review.sentences[0][0].vector)
+            gram_vectors = [word.vector for word in review_words]
+            for _ in range(max_length - len(gram_vectors)):
+                gram_vectors.append([0 for _ in range(gram_vector_size)])
+            gram_vectors = gram_vectors[:max_length]
+            self.gram_vectors.append(gram_vectors)
+
+        if self.enable_char_indices:
+            chars = [[char_set.find(ch) if char_set.find(ch) != -1 else 0 for ch in word][:max_word_length]
+                     for word in words_texts]
+            chars = [word + [0 for _ in range(max_word_length - len(word))] for word in chars]
+            chars += [[0 for _ in range(max_word_length)] for _ in range(max_length - len(chars))]
+            chars = chars[:max_length]
+            self.char_indices.append(chars)
+
+        if self.enable_additional:
+            additional = []
+            if additional_function is not None:
+                additional = [additional_function(word) for word in review_words]
+            additional += [[0] for _ in range(max_length - len(additional))]
+            additional = additional[:max_length]
+            self.additional_features.append(additional)
 
         target = target_function(review)
         if isinstance(target, list) and len(target) == len(review_words):
             target += [0 for _ in range(max_length - len(target))]
             target = target[:max_length]
-
-        additional = []
-        if additional_function is not None:
-            additional = [additional_function(word) for word in review_words]
-        additional += [[0] for _ in range(max_length - len(additional))]
-        additional = additional[:max_length]
-
-        self.word_indices.append(indices)
-        self.gram_vectors.append(gram_vectors)
-        self.char_indices.append(chars)
-        self.additional_features.append(additional)
         self.y.append(target)
+
         self.lengths.append(len(review_words))
 
     def size(self):
@@ -93,12 +103,13 @@ class VarBatch:
 
 
 def get_batches(data, vocabulary, char_set, batch_size,
-                max_length, max_word_length, target_function, additional_function=None):
-    batch = Batch()
+                max_length, max_word_length, target_function, additional_function=None,
+                enable_gram=True, enable_word_indices=True, enable_char_indices=True,
+                enable_additional=True):
+    batch = Batch(enable_gram, enable_word_indices, enable_char_indices, enable_additional)
     for review in data:
         batch.add_review(review, vocabulary, char_set, max_length, max_word_length,
                          target_function, additional_function)
-
         if batch.size() == batch_size:
             yield VarBatch(batch)
             batch.reset()

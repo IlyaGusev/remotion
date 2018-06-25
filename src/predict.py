@@ -8,6 +8,7 @@ from src.sentirueval_parser import Aspect
 from src.semeval_parser import Opinion
 from src.sentirueval_parser import Review as SentiRuEvalReview
 from src.semeval_parser import Review as SemEvalReview, Sentence
+from src.imdb_parser import Review as IMDBReview
 
 
 def process_token(token, pred_class, aspect, new_review, done_opinions, competition, task_type, rev_categories):
@@ -92,32 +93,35 @@ def process_token(token, pred_class, aspect, new_review, done_opinions, competit
 
 
 def get_new_review(review, review_pred, competition, task_type, rev_categories, is_sequence_prediction=True):
-    # if is_sequence_prediction:
-    if competition == "semeval":
-        new_review = SemEvalReview(rid=review.rid)
-        for sentence in review.parsed_sentences:
-            new_review.parsed_sentences.append(Sentence(sentence.sid, sentence.text))
-        current_aspect = Opinion()
-    elif competition == "sentirueval":
-        new_review = SentiRuEvalReview(rid=review.rid, text=review.text)
-        current_aspect = Aspect(mark=0, aspect_type=0)
-    else:
-        assert False
-    tokens = [word for sentence in review.sentences for word in sentence]
-    done_opinions = set()
+    if is_sequence_prediction:
+        if competition == "semeval":
+            new_review = SemEvalReview(rid=review.rid)
+            for sentence in review.parsed_sentences:
+                new_review.parsed_sentences.append(Sentence(sentence.sid, sentence.text))
+            current_aspect = Opinion()
+        elif competition == "sentirueval":
+            new_review = SentiRuEvalReview(rid=review.rid, text=review.text)
+            current_aspect = Aspect(mark=0, aspect_type=0)
+        else:
+            assert False
+        tokens = [word for sentence in review.sentences for word in sentence]
+        done_opinions = set()
 
-    for i, token in enumerate(tokens):
-        pred_class = review_pred[i].cpu().item()
-        current_aspect = process_token(token, pred_class, current_aspect, new_review,
-                                       done_opinions, competition, task_type, rev_categories)
-    if competition == "sentirueval" and (task_type == 'a' or task_type == 'b') and not current_aspect.is_empty():
-        new_review.aspects.append(current_aspect)
-    elif competition == "semeval" and task_type == '12' and not current_aspect.is_empty():
-        for sentence in new_review.parsed_sentences:
-            if sentence.sid == tokens[-1].sid:
-                sentence.aspects.append(current_aspect)
-        new_review.aspects.append(current_aspect)
-    return new_review
+        for i, token in enumerate(tokens):
+            pred_class = review_pred[i].item()
+            current_aspect = process_token(token, pred_class, current_aspect, new_review,
+                                           done_opinions, competition, task_type, rev_categories)
+        if competition == "sentirueval" and (task_type == 'a' or task_type == 'b') and not current_aspect.is_empty():
+            new_review.aspects.append(current_aspect)
+        elif competition == "semeval" and task_type == '12' and not current_aspect.is_empty():
+            for sentence in new_review.parsed_sentences:
+                if sentence.sid == tokens[-1].sid:
+                    sentence.aspects.append(current_aspect)
+            new_review.aspects.append(current_aspect)
+        return new_review
+    else:
+        new_review = IMDBReview(rid=review.rid, text=review.text, sentiment=review_pred)
+        return new_review
 
 
 def predict(config_filename, test_data, vocabulary, char_set, targets, additionals, rev_categories):
@@ -133,22 +137,35 @@ def predict(config_filename, test_data, vocabulary, char_set, targets, additiona
     task_key = competition + "-" + task_type
     test_batches = get_batches(test_data.reviews, vocabulary, char_set, 1,
                                config.max_length, config.model_config.char_max_word_length,
-                               targets[task_key], additionals[task_key])
+                               targets[task_key], additionals[task_key], config.model_config.use_pos)
     new_reviews = []
     for review, batch in zip(test_data.reviews, test_batches):
-        length = sum([int(elem != 0) for elem in batch.word_indices[0].data])
         predictions = model.predict(batch)
-        if model.config.use_crf:
-            review_pred = predictions[0][:length]
+
+        if config.model_config.is_sequence_predictor:
+            length = sum([int(elem != 0) for elem in batch.word_indices[0].data])
+            if model.config.use_crf:
+                review_pred = predictions[0][:length]
+            else:
+                review_pred = predictions[0, :length].cpu()
         else:
-            review_pred = predictions[0, :length]
-        new_review = get_new_review(review, review_pred, competition, task_type, rev_categories)
+            review_pred = predictions[0].cpu().item()
+        new_review = get_new_review(review, review_pred, competition, task_type, rev_categories,
+                                    config.model_config.is_sequence_predictor)
         new_reviews.append(new_review)
 
-    xml = '<?xml version="1.0" ?>\n'
-    xml += '<Reviews>\n' if competition == "semeval" else "<reviews>\n"
-    for review in new_reviews:
-        xml += review.to_xml()
-    xml += '</Reviews>\n' if competition == "semeval" else "</reviews>\n"
-    with open(config.output_filename, "w", encoding='utf-8') as f:
-        f.write(xml)
+    if competition == "imdb":
+        csv = "id,sentiment\n"
+        for review in new_reviews:
+            csv += str(review.rid) + "," + str(review.sentiment) + "\n"
+        with open(config.output_filename, "w", encoding='utf-8') as f:
+            f.write(csv)
+
+    if competition == "semeval" or competition == "sentirueval":
+        xml = '<?xml version="1.0" ?>\n'
+        xml += '<Reviews>\n' if competition == "semeval" else "<reviews>\n"
+        for review in new_reviews:
+            xml += review.to_xml()
+        xml += '</Reviews>\n' if competition == "semeval" else "</reviews>\n"
+        with open(config.output_filename, "w", encoding='utf-8') as f:
+            f.write(xml)

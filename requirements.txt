@@ -5,7 +5,7 @@ gensim==3.4.0
 torch==0.4.0
 torchvision==0.2.1
 pytorch-crf==0.5.1
-rnnmorph==0.2.3
+rnnmorph==0.4.0
 nltk==3.3
 sentence_splitter==1.2
 matplotlib==2.2.2

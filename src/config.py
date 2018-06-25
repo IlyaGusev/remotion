@@ -1,5 +1,6 @@
 import json
 import copy
+import os
 
 
 class ModelConfig(object):
@@ -40,14 +41,17 @@ class DataConfig(object):
         self.domain = "rest"
         self.train_filename = ""
         self.test_filename = ""
-        self.vectorizer_path = "vectorizer.json"
         self.clear_cache = False
 
 
 class Config(object):
     def __init__(self):
+        self.data_config = DataConfig()
+        self.model_config = ModelConfig()
         self.competition = "semeval"
         self.task_type = "a"
+        self.result_type = "xml"
+        self.experiment = "base"
         self.val_size = 0.2
         self.epochs = 100
         self.lr = 0.001
@@ -56,11 +60,23 @@ class Config(object):
         self.max_length = 300
         self.use_pretrained_embedding = True
         self.embeddings_filename = ""
-        self.data_config = DataConfig()
-        self.model_config = ModelConfig()
-        self.output_filename = "submission.xml"
         self.seed = 42
-        self.model_filename = "model.pt"
+
+    @property
+    def output_filename(self):
+        if not os.path.exists("submissions"):
+            os.mkdir("submissions")
+        return "submissions/{}_{}_{}_{}_{}.{}".format(
+            self.competition, self.data_config.language, self.data_config.domain, self.task_type,
+            self.experiment, self.result_type)
+
+    @property
+    def model_filename(self):
+        if not os.path.exists("models"):
+            os.mkdir("models")
+        return "models/{}_{}_{}_{}_{}.pt".format(
+            self.competition, self.data_config.language, self.data_config.domain, self.task_type,
+            self.experiment)
 
     def save(self, filename):
         with open(filename, 'w', encoding='utf-8') as f:
@@ -85,7 +101,6 @@ def get_targets_additionals(train_data):
     print("Aspect categories: ", len(aspect_categories))
 
     review_categories = train_data.get_review_categories()
-    rev_review_categories = {value:key for key, value in review_categories.items()}
     print("Review categories: ", len(review_categories))
 
     def get_target_func_from_word_func(word_func):
@@ -141,6 +156,9 @@ def get_targets_additionals(train_data):
             return [len(word.opinions)]
         return [0]
 
+    def imdb_target_function(review):
+        return review.sentiment
+
     targets = {
         'semeval-12': get_target_func_from_word_func(semeval_word_function_12),
         'semeval-3': get_target_func_from_word_func(polarity_word_function),
@@ -148,7 +166,8 @@ def get_targets_additionals(train_data):
         'sentirueval-b': get_target_func_from_word_func(sentirueval_word_function_b),
         'sentirueval-c': get_target_func_from_word_func(polarity_word_function),
         'sentirueval-d': get_target_func_from_word_func(sentirueval_word_function_d),
-        'sentirueval-e': sentirueval_target_function_e
+        'sentirueval-e': sentirueval_target_function_e,
+        'imdb-clf': imdb_target_function
     }
 
     additionals = {
@@ -158,7 +177,8 @@ def get_targets_additionals(train_data):
         'sentirueval-b': None,
         'sentirueval-c': opinion_additional_function,
         'sentirueval-d': opinion_additional_function,
-        'sentirueval-e': None
+        'sentirueval-e': None,
+        'imdb-clf': None
     }
 
     output_sizes = {
@@ -168,7 +188,8 @@ def get_targets_additionals(train_data):
         'sentirueval-a': 3,
         'sentirueval-b': 7,
         'sentirueval-c': 5,
-        'sentirueval-d': 2 * len(aspect_categories) + 1
+        'sentirueval-d': 2 * len(aspect_categories) + 1,
+        'imdb-clf': 2
     }
 
     return targets, additionals, rev_aspect_categories, output_sizes

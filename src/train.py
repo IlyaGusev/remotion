@@ -40,10 +40,14 @@ def train_model(config_filename, train_data, vocabulary, char_set, targets,
         torch.backends.cudnn.deterministic = True
 
     task_key = config.competition + "-" + config.task_type
-    gram_vector_size = len(train_data.reviews[0].sentences[0][0].vector)
+
     config.model_config.word_vocabulary_size = vocabulary.size()
     config.model_config.char_count = len(char_set)
-    config.model_config.gram_vector_size = gram_vector_size
+
+    if config.model_config.use_pos:
+        gram_vector_size = len(train_data.reviews[0].sentences[0][0].vector)
+        config.model_config.gram_vector_size = gram_vector_size
+
     config.model_config.output_size = output_sizes[task_key]
     config.max_length = max_length
     config.save(config_filename)
@@ -74,7 +78,7 @@ def train_model(config_filename, train_data, vocabulary, char_set, targets,
         train_count = 0
         train_batches = get_batches(train_data, vocabulary, char_set, config.batch_size,
                                     config.max_length, config.model_config.char_max_word_length,
-                                    target_function, additional_function)
+                                    target_function, additional_function, config.model_config.use_pos)
         for batch in train_batches:
             model.train()
             loss = process_batch(model, batch, optimizer)
@@ -85,7 +89,7 @@ def train_model(config_filename, train_data, vocabulary, char_set, targets,
         val_count = 0
         val_batches = get_batches(val_data, vocabulary, char_set, config.batch_size,
                                   config.max_length, config.model_config.char_max_word_length,
-                                  target_function, additional_function)
+                                  target_function, additional_function, config.model_config.use_pos)
         for batch in val_batches:
             model.eval()
             loss = process_batch(model, batch, None)

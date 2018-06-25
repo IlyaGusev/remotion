@@ -109,7 +109,7 @@ class SemEvalDataset(Dataset):
         super().__init__()
         self.language = language
 
-    def parse(self, filename, vectorizer_path=None):
+    def parse(self, filename):
         assert filename.endswith('xml')
         tree = ET.parse(filename)
         root = tree.getroot()
@@ -119,7 +119,7 @@ class SemEvalDataset(Dataset):
             review.parse(review_node)
             self.reviews.append(review)
         self.tokenize()
-        self.pos_tag(vectorizer_path)
+        self.pos_tag()
 
     def tokenize(self):
         for review in self.reviews:
@@ -139,6 +139,13 @@ class SemEvalDataset(Dataset):
                             opinion.words.append(word)
                     tokenized_sentence.append(word)
                 review.sentences.append(tokenized_sentence)
+
+    def print_stat(self):
+        print("Num of reviews: " + str(len(self.reviews)))
+        print("Num of opinions: " + str(self.get_opinion_count()))
+        print("Max review length: " + str(max(self.get_lengths())))
+        print(self.reviews[0].sentences[0])
+        print(self.reviews[0].sentences[0])
 
     def get_aspect_categories(self):
         categories = set()

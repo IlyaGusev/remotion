@@ -2,7 +2,7 @@ import xml.etree.ElementTree as ET
 from nltk.tokenize import WordPunctTokenizer
 from sentence_splitter import SentenceSplitter
 
-from src.parser import Word,Dataset
+from src.parser import Word, Dataset
 
 
 class Aspect(object):
@@ -155,6 +155,13 @@ class SentiRuEvalDataset(Dataset):
                                 opinion.words.append(word)
                         tokenized_sentence.append(word)
                 self.reviews[i].sentences.append(tokenized_sentence)
+
+    def print_stat(self):
+        print("Num of reviews: " + str(len(self.reviews)))
+        print("Num of opinions: " + str(self.get_opinion_count()))
+        print("Max review length: " + str(max(self.get_lengths())))
+        print(self.reviews[0].sentences[0])
+        print(self.reviews[0].sentences[0])
 
     def get_aspect_categories(self):
         categories = set()

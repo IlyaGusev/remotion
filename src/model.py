@@ -1,11 +1,9 @@
-import json
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.autograd import Variable
 from torch.nn.utils.rnn import pack_padded_sequence as pack
 from torch.nn.utils.rnn import pad_packed_sequence as unpack
-from torchcrf import CRF
 
 from src.batch import VarBatch
 from src.config import Config
@@ -51,6 +49,7 @@ class RemotionRNN(nn.Module):
             self.dense_dropout = nn.Dropout(config.dense_dropout_p)
             self.output = nn.Linear(config.dense_size, config.output_size, bias=False)
             if config.use_crf and config.is_sequence_predictor:
+                from torchcrf import CRF
                 self.crf = CRF(config.output_size)
         else:
             dense = [nn.Linear(config.rnn_hidden_size * (2 if config.rnn_bidirectional else 1),
