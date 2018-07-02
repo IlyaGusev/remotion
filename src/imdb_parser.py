@@ -1,4 +1,5 @@
 import pandas as pd
+import matplotlib.pyplot as plt
 from src.parser import Dataset, Word
 from nltk.tokenize import WordPunctTokenizer
 from sentence_splitter import SentenceSplitter
@@ -17,8 +18,10 @@ class IMDBDataset(Dataset):
         super().__init__()
         self.reviews = []
         self.language = "en"
+        self.is_train = True
 
-    def parse(self, filename):
+    def parse(self, filename, is_train=True):
+        self.is_train = is_train
         data = pd.read_csv(filename, delimiter="\t")
         for _, row in data.iterrows():
             if 'sentiment' in row:
@@ -42,5 +45,12 @@ class IMDBDataset(Dataset):
                 self.reviews[i].sentences.append(tokenized_sentence)
 
     def print_stat(self):
+        lengths = self.get_lengths()
+        plt.hist(lengths, bins=1000)
+        plt.title('Word count distribution for IMDB {}'.format("train" if self.is_train else "test"))
+        plt.ylabel('Review count')
+        plt.xlabel('Num words')
+        plt.savefig("imdb_words_{}.png".format("train" if self.is_train else "test"))
+        plt.clf()
         print("Num of reviews: " + str(len(self.reviews)))
-        print("Max review length: " + str(max(self.get_lengths())))
+        print("Max review length: " + str(max(lengths)))

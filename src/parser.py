@@ -143,11 +143,11 @@ class Dataset(object):
             dataset = jsonpickle.decode(f.read())
             self.__dict__.update(dataset.__dict__)
 
-    def get_vocabulary(self):
+    def get_vocabulary(self, lower=True):
         vocabulary = Vocabulary()
         for review in self.reviews:
             for sentence in review.sentences:
-                vocabulary.add_sentence(" ".join([word.text.lower() for word in sentence]))
+                vocabulary.add_sentence(" ".join([word.text.lower() if lower else word.text for word in sentence]))
         return vocabulary
 
     def get_char_set(self):
@@ -184,6 +184,9 @@ def get_dataset(filename, competition, config: DataConfig, is_train=True):
     elif competition == "imdb":
         from src.imdb_parser import IMDBDataset
         data = IMDBDataset()
+    elif competition == "sst2" or competition == "sst1":
+        from src.sst_parser import SSTDataset
+        data = SSTDataset()
     else:
         assert False
 
@@ -194,9 +197,12 @@ def get_dataset(filename, competition, config: DataConfig, is_train=True):
     if os.path.exists(cache_filename) and not config.clear_cache:
         data.load(cache_filename)
     else:
-        if filename.endswith("xml") or filename.endswith("tsv") and competition == "imdb":
-            data.parse(filename)
-            # data.save(cache_filename)
+        sst_parsing = filename.endswith("txt") and (competition == "sst2" or competition == "sst1")
+        imdb_parsing = filename.endswith("tsv") and competition == "imdb"
+        if filename.endswith("xml") or imdb_parsing or sst_parsing:
+            data.parse(filename, is_train)
+            if competition != "imdb":
+                data.save(cache_filename)
         elif filename.endswith("json"):
             data.load(filename)
             data.save(cache_filename)

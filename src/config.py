@@ -11,28 +11,45 @@ class ModelConfig(object):
         self.use_chars = False
         self.use_word_embeddings = True
         self.use_additional_features = True
-        self.is_multi_target = False
-        self.target_count = 5
+        self.use_rnn = True
+        self.use_cnn = False
+        self.use_dense = True
+
+        self.target_count = 1
         self.additional_features_size = 1
+
         self.word_vocabulary_size = 2
         self.word_embedding_dim = 500
         self.word_embedding_dropout_p = 0.2
+        self.word_max_count = 1500
+
         self.rnn_n_layers = 2
         self.rnn_hidden_size = 50
         self.rnn_dropout_p = 0.5
         self.rnn_bidirectional = True
         self.rnn_output_dropout_p = 0.3
+
         self.gram_vector_size = 52
         self.gram_hidden_size = 30
         self.gram_dropout_p = 0.2
+
         self.char_count = 50
         self.char_embedding_dim = 4
         self.char_function_output_size = 50
         self.char_dropout_p = 0.2
         self.char_max_word_length = 30
+
         self.dense_size = 32
         self.dense_dropout_p = 0.3
+
         self.output_size = 3
+
+        self.assert_correctness()
+
+    def assert_correctness(self):
+        assert not self.use_crf or self.use_crf and self.is_sequence_predictor
+        assert self.target_count == 1 or self.target_count != 1 and not self.use_crf
+        assert self.use_rnn and not self.use_cnn or self.use_cnn and not self.use_rnn
 
 
 class DataConfig(object):
@@ -48,19 +65,34 @@ class Config(object):
     def __init__(self):
         self.data_config = DataConfig()
         self.model_config = ModelConfig()
+
         self.competition = "semeval"
         self.task_type = "a"
         self.result_type = "xml"
         self.experiment = "base"
+
         self.val_size = 0.2
         self.epochs = 100
-        self.lr = 0.001
         self.batch_size = 8
         self.patience = 2
-        self.max_length = 300
-        self.use_pretrained_embedding = True
+        self.optimizer = "adam"
+        self.opt_lr = 0.001
+        self.opt_rho = 0.95
+        self.opt_eps = 1e-6
+
+        self.lower_vocabulary = True
+
+        self.use_pretrained_embeddings = True
+        self.train_embeddings = False
         self.embeddings_filename = ""
         self.seed = 42
+
+        self.assert_correctness()
+
+    def assert_correctness(self):
+        assert self.competition in ["semeval", "sentirueval", "imdb", "sst2", "sst1"]
+        assert self.optimizer in ["adam", "adadelta"]
+        assert self.result_type in ["xml", "csv", "txt"]
 
     @property
     def output_filename(self):
@@ -91,8 +123,12 @@ class Config(object):
             self.__dict__.update(d)
             self.model_config = ModelConfig()
             self.model_config.__dict__.update(d['model_config'])
+            self.model_config.assert_correctness()
+
             self.data_config = DataConfig()
             self.data_config.__dict__.update(d['data_config'])
+
+            self.assert_correctness()
 
 
 def get_targets_additionals(train_data):
@@ -156,7 +192,7 @@ def get_targets_additionals(train_data):
             return [len(word.opinions)]
         return [0]
 
-    def imdb_target_function(review):
+    def clf_target_function(review):
         return review.sentiment
 
     targets = {
@@ -167,7 +203,9 @@ def get_targets_additionals(train_data):
         'sentirueval-c': get_target_func_from_word_func(polarity_word_function),
         'sentirueval-d': get_target_func_from_word_func(sentirueval_word_function_d),
         'sentirueval-e': sentirueval_target_function_e,
-        'imdb-clf': imdb_target_function
+        'imdb-clf': clf_target_function,
+        'sst1-clf': clf_target_function,
+        'sst2-clf': clf_target_function,
     }
 
     additionals = {
@@ -178,7 +216,9 @@ def get_targets_additionals(train_data):
         'sentirueval-c': opinion_additional_function,
         'sentirueval-d': opinion_additional_function,
         'sentirueval-e': None,
-        'imdb-clf': None
+        'imdb-clf': None,
+        'sst1-clf': None,
+        'sst2-clf': None
     }
 
     output_sizes = {
@@ -189,7 +229,9 @@ def get_targets_additionals(train_data):
         'sentirueval-b': 7,
         'sentirueval-c': 5,
         'sentirueval-d': 2 * len(aspect_categories) + 1,
-        'imdb-clf': 2
+        'imdb-clf': 2,
+        'sst1-clf': 5,
+        'sst2-clf': 2
     }
 
     return targets, additionals, rev_aspect_categories, output_sizes

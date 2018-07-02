@@ -67,7 +67,7 @@ class Batch:
             target = target[:max_length]
         self.y.append(target)
 
-        self.lengths.append(len(review_words))
+        self.lengths.append(min(len(review_words), max_length))
 
     def size(self):
         return len(self.word_indices)

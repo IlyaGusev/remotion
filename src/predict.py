@@ -9,6 +9,7 @@ from src.semeval_parser import Opinion
 from src.sentirueval_parser import Review as SentiRuEvalReview
 from src.semeval_parser import Review as SemEvalReview, Sentence
 from src.imdb_parser import Review as IMDBReview
+from src.sst_parser import Review as SSTReview
 
 
 def process_token(token, pred_class, aspect, new_review, done_opinions, competition, task_type, rev_categories):
@@ -120,7 +121,12 @@ def get_new_review(review, review_pred, competition, task_type, rev_categories, 
             new_review.aspects.append(current_aspect)
         return new_review
     else:
-        new_review = IMDBReview(rid=review.rid, text=review.text, sentiment=review_pred)
+        if competition == "imdb":
+            new_review = IMDBReview(rid=review.rid, text=review.text, sentiment=review_pred)
+        elif competition == "sst2" or competition == "sst1":
+            new_review = SSTReview(text=review.text, sentiment=review_pred)
+        else:
+            assert False
         return new_review
 
 
@@ -136,7 +142,7 @@ def predict(config_filename, test_data, vocabulary, char_set, targets, additiona
     task_type = config.task_type
     task_key = competition + "-" + task_type
     test_batches = get_batches(test_data.reviews, vocabulary, char_set, 1,
-                               config.max_length, config.model_config.char_max_word_length,
+                               config.model_config.word_max_count, config.model_config.char_max_word_length,
                                targets[task_key], additionals[task_key], config.model_config.use_pos)
     new_reviews = []
     for review, batch in zip(test_data.reviews, test_batches):
@@ -160,6 +166,13 @@ def predict(config_filename, test_data, vocabulary, char_set, targets, additiona
             csv += str(review.rid) + "," + str(review.sentiment) + "\n"
         with open(config.output_filename, "w", encoding='utf-8') as f:
             f.write(csv)
+
+    if competition == "sst2" or competition == "sst1":
+        text = ""
+        for review in new_reviews:
+            text += str(review.sentiment) + " " + review.text + "\n"
+        with open(config.output_filename, "w", encoding='utf-8') as f:
+            f.write(text)
 
     if competition == "semeval" or competition == "sentirueval":
         xml = '<?xml version="1.0" ?>\n'

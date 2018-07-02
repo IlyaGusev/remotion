@@ -1,7 +1,5 @@
 import random
-import copy
-from collections import Counter
-
+import numpy as np
 import torch
 import torch.optim as optim
 
@@ -26,7 +24,7 @@ def process_batch(model, batch, optimizer=None):
 
 
 def train_model(config_filename, train_data, vocabulary, char_set, targets,
-                additionals, output_sizes, max_length):
+                additionals, output_sizes):
     config = Config()
     config.load(config_filename)
 
@@ -49,24 +47,29 @@ def train_model(config_filename, train_data, vocabulary, char_set, targets,
         config.model_config.gram_vector_size = gram_vector_size
 
     config.model_config.output_size = output_sizes[task_key]
-    config.max_length = max_length
     config.save(config_filename)
 
     model = RemotionRNN(config.model_config)
-    if config.model_config.use_word_embeddings and config.use_pretrained_embedding:
+    if config.model_config.use_word_embeddings and config.use_pretrained_embeddings:
         embeddings = get_embeddings(vocabulary, config.embeddings_filename,
                                     config.model_config.word_embedding_dim)
-        model.embedding.weight = torch.nn.Parameter(embeddings, requires_grad=False)
+        model.embedding.weight = torch.nn.Parameter(embeddings, requires_grad=config.train_embeddings)
     model = model.cuda() if use_cuda else model
     print(model)
 
-    optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=config.lr)
+    if config.optimizer == "adam":
+        optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=config.opt_lr)
+    elif config.optimizer == "adadelta":
+        optimizer = optim.Adadelta(filter(lambda p: p.requires_grad, model.parameters()),
+                                   lr=config.opt_lr, rho=config.opt_rho, eps=config.opt_eps)
+    else:
+        assert False
 
+    n = len(train_data.reviews)
     train_size = 1 - config.val_size
-    border = int(len(train_data.reviews)*train_size)
-    train_data = copy.deepcopy(train_data)
-    random.Random(config.seed).shuffle(train_data.reviews)
-    train_data, val_data = train_data.reviews[:border], train_data.reviews[border:]
+    border = int(n*train_size)
+    reviews = random.Random(config.seed).sample(train_data.reviews, n)
+    train_reviews, val_reviews = reviews[:border], reviews[border:]
 
     target_function = targets[task_key]
     additional_function = additionals[task_key]
@@ -76,8 +79,8 @@ def train_model(config_filename, train_data, vocabulary, char_set, targets,
     for epoch in range(config.epochs):
         train_loss = 0
         train_count = 0
-        train_batches = get_batches(train_data, vocabulary, char_set, config.batch_size,
-                                    config.max_length, config.model_config.char_max_word_length,
+        train_batches = get_batches(train_reviews, vocabulary, char_set, config.batch_size,
+                                    config.model_config.word_max_count, config.model_config.char_max_word_length,
                                     target_function, additional_function, config.model_config.use_pos)
         for batch in train_batches:
             model.train()
@@ -87,8 +90,8 @@ def train_model(config_filename, train_data, vocabulary, char_set, targets,
 
         val_loss = 0
         val_count = 0
-        val_batches = get_batches(val_data, vocabulary, char_set, config.batch_size,
-                                  config.max_length, config.model_config.char_max_word_length,
+        val_batches = get_batches(val_reviews, vocabulary, char_set, config.batch_size,
+                                  config.model_config.word_max_count, config.model_config.char_max_word_length,
                                   target_function, additional_function, config.model_config.use_pos)
         for batch in val_batches:
             model.eval()
