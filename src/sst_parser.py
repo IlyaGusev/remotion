@@ -17,7 +17,7 @@ class SSTDataset(Dataset):
         self.language = "en"
         self.is_train = True
 
-    def parse(self, filename, is_train=True):
+    def parse(self, filename, is_train=True, **kwargs):
         self.is_train = is_train
         with open(filename, "r", encoding="utf-8") as f:
             for line in f:

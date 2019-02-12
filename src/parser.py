@@ -104,7 +104,7 @@ class Dataset(object):
         self.reviews = []
         self.language = ""
 
-    def parse(self, filename):
+    def parse(self, filename, **kwargs):
         raise NotImplementedError()
 
     def tokenize(self):
@@ -200,7 +200,7 @@ def get_dataset(filename, competition, config: DataConfig, is_train=True):
         sst_parsing = filename.endswith("txt") and (competition == "sst2" or competition == "sst1")
         imdb_parsing = filename.endswith("tsv") and competition == "imdb"
         if filename.endswith("xml") or imdb_parsing or sst_parsing:
-            data.parse(filename, is_train)
+            data.parse(filename, is_train=is_train)
             if competition != "imdb":
                 data.save(cache_filename)
         elif filename.endswith("json"):

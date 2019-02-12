@@ -109,7 +109,7 @@ class SemEvalDataset(Dataset):
         super().__init__()
         self.language = language
 
-    def parse(self, filename):
+    def parse(self, filename, **kwargs):
         assert filename.endswith('xml')
         tree = ET.parse(filename)
         root = tree.getroot()
